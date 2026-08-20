@@ -1,8 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
 import '../../core/services/cache/translation_cache.dart';
+import '../../core/services/model_paths.dart';
 
 /// Réglages : langues, moteur de traduction, opacité de l'overlay, cache.
 class SettingsScreen extends StatefulWidget {
@@ -18,6 +20,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late ReaderSettings _settings = widget.settings;
   bool _checkingNative = true;
   bool _nativeAvailable = false;
+  bool _modelPresent = false;
+  bool _importing = false;
   int _cacheCount = 0;
 
   @override
@@ -25,6 +29,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _checkNativeEngine();
     _loadCacheCount();
+    _checkModel();
+  }
+
+  Future<void> _checkModel() async {
+    final present = await ModelPaths.ct2ModelExists(
+      _settings.sourceBcp,
+      _settings.targetBcp,
+    );
+    if (!mounted) return;
+    setState(() => _modelPresent = present);
   }
 
   Future<void> _checkNativeEngine() async {
@@ -47,6 +61,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final count = await TranslationCache.instance.count();
     if (!mounted) return;
     setState(() => _cacheCount = count);
+  }
+
+  /// Importe le modèle CTranslate2 depuis un dossier choisi par
+  /// l'utilisateur (SAF) vers le dossier privé de l'app.
+  Future<void> _importModel() async {
+    final dirPath = await FilePicker.getDirectoryPath();
+    if (dirPath == null) return;
+
+    setState(() => _importing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final target = await ModelPaths.ct2ModelDir(
+        _settings.sourceBcp,
+        _settings.targetBcp,
+      );
+      await ModelPaths.copyDirectory(dirPath, target);
+      await _checkModel();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Modèle importé dans $target')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Import impossible : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
   }
 
   Future<void> _clearCache() async {
@@ -117,6 +158,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   enabled: _nativeAvailable && !_checkingNative,
                 ),
               ],
+            ),
+          ),
+          ListTile(
+            leading: _importing
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.folder_open),
+            title: const Text('Importer un modèle converti'),
+            subtitle: Text(
+              _modelPresent
+                  ? 'Modèle ${_settings.sourceBcp}→${_settings.targetBcp} présent ✓'
+                  : 'Choisis le dossier opus-mt-…-ct2 (model.bin + '
+                      'sentencepiece.bpe.model), ex. depuis Download/.',
+            ),
+            trailing: OutlinedButton(
+              onPressed: _importing ? null : _importModel,
+              child: const Text('Importer'),
             ),
           ),
           const Divider(height: 32),

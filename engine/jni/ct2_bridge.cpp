@@ -1,21 +1,20 @@
 #include "ct2_bridge.h"
 
+#include <android/log.h>
+
 #include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
-// Décommenter une fois CTranslate2 compilé pour Android :
-// #include <ctranslate2/translator.h>
+#include <ctranslate2/translator.h>
+#include <ctranslate2/sentence_piece.h>
 
 namespace {
 
 std::mutex g_mutex;
-
-// ctranslate2::Translator = modèle seq2seq (opus-mt, NLLB) chargé en mémoire.
-// std::unique_ptr<ctranslate2::Translator> g_translator;
-
-// Le modèle est chargé : passe à true après un initialize() réussi.
+std::unique_ptr<ctranslate2::Translator> g_translator;
+std::unique_ptr<ctranslate2::SentencePiece> g_tokenizer;
 bool g_ready = false;
 
 std::string to_string(JNIEnv* env, jstring value) {
@@ -33,32 +32,42 @@ extern "C" {
 JNIEXPORT jboolean JNICALL
 Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeIsAvailable(
     JNIEnv* /*env*/, jclass /*clazz*/) {
-  // La bibliothèque est liée : le moteur est disponible.
-  return JNI_TRUE;
+  return JNI_TRUE;  // la bibliothèque est liée
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeInitialize(
-    JNIEnv* env, jclass /*clazz*/, jstring model_dir, jstring source_lang,
-    jstring target_lang, jint threads) {
+    JNIEnv* env, jclass /*clazz*/, jstring model_dir, jstring /*source_lang*/,
+    jstring /*target_lang*/, jint threads) {
   const std::string model_dir_str = to_string(env, model_dir);
-  const std::string source = to_string(env, source_lang);
-  const std::string target = to_string(env, target_lang);
 
   std::lock_guard<std::mutex> lock(g_mutex);
+  if (g_ready) return JNI_TRUE;
 
-  // TODO(mode qualité) : charger le modèle CTranslate2.
-  //
-  // ctranslate2::models::ModelLoader loader(model_dir_str);
-  // loader.cpu_threads = threads;
-  // loader.compute_type = ctranslate2::ComputeType::INT8;
-  // g_translator = std::make_unique<ctranslate2::Translator>(loader);
-  // g_ready = true;
+  try {
+    ctranslate2::ReplicaPoolConfig config;
+    config.intra_threads = threads > 0 ? static_cast<size_t>(threads) : 4;
+    config.inter_threads = 1;
+    config.compute_type = ctranslate2::ComputeType::AUTO;  // = type stocké (int8)
 
-  (void)source;
-  (void)target;
+    g_translator = std::make_unique<ctranslate2::Translator>(
+        model_dir_str, ctranslate2::Device::CPU, 0, config);
 
-  return g_ready ? JNI_TRUE : JNI_FALSE;
+    // Tokenizer SentencePiece de Marian (opus-mt) : fichier
+    // sentencepiece.bpe.model copié à côté de model.bin.
+    g_tokenizer = std::make_unique<ctranslate2::SentencePiece>(
+        model_dir_str + "/sentencepiece.bpe.model");
+
+    g_ready = true;
+  } catch (const std::exception& e) {
+    g_translator.reset();
+    g_tokenizer.reset();
+    g_ready = false;
+    __android_log_print(ANDROID_LOG_ERROR, "youssira_ct2",
+                        "initialize failed: %s", e.what());
+    return JNI_FALSE;
+  }
+  return JNI_TRUE;
 }
 
 JNIEXPORT jstring JNICALL
@@ -67,26 +76,37 @@ Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeTranslate(
   const std::string input = to_string(env, text);
 
   std::lock_guard<std::mutex> lock(g_mutex);
-  if (!g_ready /* || !g_translator */) {
+  if (!g_ready || !g_translator || !g_tokenizer) return nullptr;
+
+  try {
+    std::vector<std::string> source_tokens;
+    g_tokenizer->encode(input, source_tokens);
+    source_tokens.push_back("</s>");  // EOS attendu par Marian
+
+    ctranslate2::TranslationOptions options;
+    options.beam_size = 4;
+    options.max_length = 512;
+
+    const auto results =
+        g_translator->translate_batch({source_tokens}, options);
+    if (results.empty()) return nullptr;
+
+    std::string output;
+    g_tokenizer->decode(results[0].output(), output);
+    return env->NewStringUTF(output.c_str());
+  } catch (const std::exception& e) {
+    __android_log_print(ANDROID_LOG_ERROR, "youssira_ct2",
+                        "translate failed: %s", e.what());
     return nullptr;
   }
-
-  // TODO(mode qualité) : tokeniser (SentencePiece), traduire, dé-tokeniser.
-  //
-  // std::vector<std::string> tokens = g_tokenizer.encode(input);
-  // auto hypotheses = g_translator->translate_batch({tokens});
-  // std::string output = g_tokenizer.decode(hypotheses[0].output);
-  // return env->NewStringUTF(output.c_str());
-
-  (void)input;
-  return nullptr;
 }
 
 JNIEXPORT void JNICALL
 Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeShutdown(
     JNIEnv* /*env*/, jclass /*clazz*/) {
   std::lock_guard<std::mutex> lock(g_mutex);
-  // g_translator.reset();
+  g_tokenizer.reset();
+  g_translator.reset();
   g_ready = false;
 }
 

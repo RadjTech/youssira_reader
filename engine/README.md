@@ -35,6 +35,7 @@ cmake -S . -B build-android-arm64 \
   -DANDROID_PLATFORM=android-26 \
   -DCMAKE_BUILD_TYPE=Release \
   -DWITH_CUDA=OFF -DWITH_MKL=OFF -DWITH_DNNL=OFF \
+  -DWITH_SENTENCEPIECE=ON \
   -DBUILD_CLI=OFF
 
 cmake --build build-android-arm64 -j8
@@ -51,9 +52,21 @@ pip install ctranslate2 transformers sentencepiece
 
 ct2-transformers-converter \
   --model Helsinki-NLP/opus-mt-fr-en \
-  --output_dir models/opus-mt-fr-en-ct2 \
+  --output_dir opus-mt-fr-en-ct2 \
   --quantization int8
 ```
+
+**Important** : copie aussi le tokenizer depuis le repo HF d'origine dans le
+même dossier (indispensable, Marian = SentencePiece) :
+
+```bash
+# depuis https://huggingface.co/Helsinki-NLP/opus-mt-fr-en/tree/main
+# -> sentencepiece.bpe.model
+cp sentencepiece.bpe.model opus-mt-fr-en-ct2/
+```
+
+Le dossier final doit contenir : `model.bin`, `config.json`,
+`sentencepiece.bpe.model`.
 
 Pour 10+ langues (roadmap) : `facebook/nllb-200-distilled-600M` en int8 (~600 Mo).
 
@@ -83,10 +96,15 @@ class MainActivity : FlutterActivity() {
 }
 ```
 
-### 5. Livrer le modèle
+### 5. Charger le modèle dans l'app
 
-Ne pas bundler le modèle dans l'APK. Deux options :
-- **Play Asset Delivery** (recommandé) : asset pack `install-time` ou `on-demand` ;
-- **Téléchargement direct** (fallback) : URL versionnée + reprise, stocké dans `getApplicationSupportDirectory()/models/`.
+Ne pas bundler le modèle dans l'APK.
 
-Puis passer le chemin du modèle à `initialize` via `modelDir`.
+**Option simple (déjà implémentée)** : dans l'app, **Réglages →
+« Importer un modèle converti »** → choisis le dossier
+`opus-mt-fr-en-ct2` (ex. depuis `Download/`) ; il est copié dans
+`<appSupport>/models/opus-mt-fr-en-ct2/` et `NativeTranslationEngine`
+passe ce chemin à `initialize` (`modelDir`).
+
+**Option production (roadmap)** : Play Asset Delivery, asset pack
+`on-demand`.
