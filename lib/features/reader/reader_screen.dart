@@ -3,6 +3,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
+import '../../core/services/pdf_export_service.dart';
 import '../settings/settings_screen.dart';
 import 'page_translation_overlay.dart';
 import 'reader_controller.dart';
@@ -69,6 +70,140 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  /// Export du document traduit : choix du format, traduction complète si
+  /// nécessaire, puis génération avec barre de progression.
+  Future<void> _exportPdf(ReaderController controller) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (!PdfExportService.supportsTarget(controller.effectivePair.to)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Export PDF indisponible pour cette langue cible pour le '
+            'moment (polices latines uniquement).',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final imageBased = await showDialog<bool>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Format du PDF traduit'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const ListTile(
+              leading: Icon(Icons.image_outlined),
+              title: Text('Fidèle (pages en image + traduction)'),
+              subtitle: Text(
+                'Mise en page, images et logos conservés. Fichier plus lourd.',
+              ),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const ListTile(
+              leading: Icon(Icons.text_snippet_outlined),
+              title: Text('Léger (texte seul)'),
+              subtitle: Text(
+                "Blocs traduits repositionnés comme l'original. "
+                'Fichier très léger, sans images.',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (imageBased == null) return;
+
+    final allTranslated = [
+      for (var i = 1; i <= controller.pageCount; i++)
+        controller.isPageTranslated(i),
+    ].every((e) => e);
+    if (!allTranslated) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Traduire d'abord ?"),
+          content: const Text(
+            "Le document n'est pas entièrement traduit. Traduire tout le "
+            "document avant l'export ?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Traduire puis exporter'),
+            ),
+          ],
+        ),
+      );
+      if (go != true) return;
+      await controller.translateWholeDocument();
+    }
+
+    final progress = ValueNotifier<double>(0);
+    final label = ValueNotifier<String>('Export…');
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ValueListenableBuilder<double>(
+        valueListenable: progress,
+        builder: (context, value, _) => ValueListenableBuilder<String>(
+          valueListenable: label,
+          builder: (context, text, _) => AlertDialog(
+            title: const Text('Export du PDF traduit'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: value),
+                const SizedBox(height: 10),
+                Text(text),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final path = await PdfExportService.exportTranslatedPdf(
+        sourcePath: widget.path,
+        controller: controller,
+        imageBased: imageBased,
+        onProgress: (p, l) {
+          if (p != null) progress.value = p;
+          label.value = l;
+        },
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            path == null
+                ? 'Export annulé.'
+                : 'PDF traduit enregistré :\n$path',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Export impossible : $e')),
+      );
+    } finally {
+      progress.dispose();
+      label.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
@@ -125,6 +260,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           : const Icon(Icons.done_all),
                       onPressed:
                           controller.busy ? null : () => _translateAll(controller),
+                    ),
+                    IconButton(
+                      tooltip: 'Exporter le PDF traduit',
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      onPressed:
+                          controller.busy ? null : () => _exportPdf(controller),
                     ),
                     IconButton(
                       tooltip: 'Réglages',

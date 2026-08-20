@@ -13,6 +13,9 @@ dependencies:
   # --- PDF : rendu + extraction de texte avec coordonnées (PDFium) ---
   pdfrx: ^2.4.7
 
+  # --- Génération de PDF (export du document traduit) ---
+  pdf: ^3.11.1
+
   # --- Traduction on-device, mode léger (ML Kit Translation) ---
   google_mlkit_translation: ^0.15.1
 
