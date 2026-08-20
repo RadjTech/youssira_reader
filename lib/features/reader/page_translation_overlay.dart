@@ -74,7 +74,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
       final height = block.height * scale;
-      final fontSize = math.max(block.fontSizeHint * scale, 6);
+      final fontSize = math.max(block.fontSizeHint * scale, 6.0);
 
       if (_fitsInBlock(progress.translatedText!, block, scale, fontSize)) {
         // La traduction rentre : calque STRICTEMENT dans le rectangle
