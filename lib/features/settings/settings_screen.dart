@@ -95,9 +95,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Column(
               children: [
-                RadioListTile<TranslationEngineKind>(
-                  title: const Text('Léger — ML Kit'),
-                  subtitle: const Text(
+                const RadioListTile<TranslationEngineKind>(
+                  title: Text('Léger — ML Kit'),
+                  subtitle: Text(
                     '~30 Mo par langue, très rapide, téléchargé par Google '
                     'Play Services. Recommandé.',
                   ),
