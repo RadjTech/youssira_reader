@@ -173,7 +173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _modelPresent
                   ? 'Modèle ${_settings.sourceBcp}→${_settings.targetBcp} présent ✓'
                   : 'Choisis le dossier opus-mt-…-ct2 (model.bin + '
-                      'sentencepiece.bpe.model), ex. depuis Download/.',
+                      'source.spm), ex. depuis Download/.',
             ),
             trailing: OutlinedButton(
               onPressed: _importing ? null : _importModel,

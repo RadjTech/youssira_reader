@@ -8,11 +8,27 @@ import 'package:path_provider/path_provider.dart';
 /// Le modèle CTranslate2 d'une paire de langues est attendu dans
 /// `<appSupport>/models/opus-mt-<from>-<to>-ct2/` et doit contenir :
 /// - `model.bin` + `config.json` (sortie de ct2-transformers-converter) ;
-/// - `sentencepiece.bpe.model` (tokenizer, depuis le repo HF d'origine).
+/// - le tokenizer SentencePiece : `source.spm` pour les modèles Marian
+///   (opus-mt, copié automatiquement par le convertisseur), ou
+///   `sentencepiece.bpe.model` pour NLLB.
 class ModelPaths {
+  /// Noms de tokenizer acceptés, par ordre de préférence.
+  static const List<String> tokenizerNames = [
+    'source.spm', // Marian / opus-mt
+    'sentencepiece.bpe.model', // NLLB
+  ];
+
   static Future<String> ct2ModelDir(String fromBcp, String toBcp) async {
     final base = await getApplicationSupportDirectory();
     return p.join(base.path, 'models', 'opus-mt-$fromBcp-$toBcp-ct2');
+  }
+
+  /// Retourne le nom du fichier tokenizer présent dans [dirPath], ou null.
+  static Future<String?> tokenizerFileNameIn(String dirPath) async {
+    for (final name in tokenizerNames) {
+      if (await File(p.join(dirPath, name)).exists()) return name;
+    }
+    return null;
   }
 
   /// true si le dossier modèle semble complet.
@@ -20,10 +36,8 @@ class ModelPaths {
     final dir = Directory(await ct2ModelDir(fromBcp, toBcp));
     if (!await dir.exists()) return false;
     final hasModelBin = await File(p.join(dir.path, 'model.bin')).exists();
-    final hasTokenizer = await File(
-      p.join(dir.path, 'sentencepiece.bpe.model'),
-    ).exists();
-    return hasModelBin && hasTokenizer;
+    final tokenizer = await tokenizerFileNameIn(dir.path);
+    return hasModelBin && tokenizer != null;
   }
 
   /// Copie récursive [from] → [to] (import du modèle depuis un dossier

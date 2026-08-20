@@ -56,17 +56,18 @@ ct2-transformers-converter \
   --quantization int8
 ```
 
-**Important** : copie aussi le tokenizer depuis le repo HF d'origine dans le
-même dossier (indispensable, Marian = SentencePiece) :
+**Important** : le tokenizer doit accompagner `model.bin`.
 
-```bash
-# depuis https://huggingface.co/Helsinki-NLP/opus-mt-fr-en/tree/main
-# -> sentencepiece.bpe.model
-cp sentencepiece.bpe.model opus-mt-fr-en-ct2/
-```
+- **opus-mt (Marian)** : le convertisseur copie normalement `source.spm`
+  automatiquement dans le dossier de sortie. Si absent, téléchargez
+  `source.spm` depuis https://huggingface.co/Helsinki-NLP/opus-mt-fr-en
+  (fichier de ~800 ko) et placez-le dans `opus-mt-fr-en-ct2/`.
+  Il n'existe PAS de `sentencepiece.bpe.model` sur ce repo — c'est le nom
+  utilisé par NLLB, pas par Marian.
+- **NLLB** : `sentencepiece.bpe.model`, copié automatiquement.
 
-Le dossier final doit contenir : `model.bin`, `config.json`,
-`sentencepiece.bpe.model`.
+Le dossier final doit contenir : `model.bin`, `config.json`, et le
+tokenizer (`source.spm` ou `sentencepiece.bpe.model`).
 
 Pour 10+ langues (roadmap) : `facebook/nllb-200-distilled-600M` en int8 (~600 Mo).
 

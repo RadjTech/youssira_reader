@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -9,6 +10,15 @@
 
 #include <ctranslate2/translator.h>
 #include <ctranslate2/sentence_piece.h>
+
+namespace {
+
+bool file_exists(const std::string& path) {
+  std::ifstream f(path);
+  return f.good();
+}
+
+}  // namespace
 
 namespace {
 
@@ -53,10 +63,25 @@ Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeInitialize(
     g_translator = std::make_unique<ctranslate2::Translator>(
         model_dir_str, ctranslate2::Device::CPU, 0, config);
 
-    // Tokenizer SentencePiece de Marian (opus-mt) : fichier
-    // sentencepiece.bpe.model copié à côté de model.bin.
-    g_tokenizer = std::make_unique<ctranslate2::SentencePiece>(
-        model_dir_str + "/sentencepiece.bpe.model");
+    // Tokenizer SentencePiece copié à côté de model.bin :
+    // - source.spm pour les modèles Marian (opus-mt, copie auto du
+    //   convertisseur) ;
+    // - sentencepiece.bpe.model pour NLLB.
+    std::string tokenizer_path;
+    for (const char* name : {"source.spm", "sentencepiece.bpe.model"}) {
+      const std::string candidate = model_dir_str + "/" + name;
+      if (file_exists(candidate)) {
+        tokenizer_path = candidate;
+        break;
+      }
+    }
+    if (tokenizer_path.empty()) {
+      throw std::runtime_error(
+          "tokenizer introuvable (source.spm ou sentencepiece.bpe.model) "
+          "dans " + model_dir_str);
+    }
+    g_tokenizer =
+        std::make_unique<ctranslate2::SentencePiece>(tokenizer_path);
 
     g_ready = true;
   } catch (const std::exception& e) {
