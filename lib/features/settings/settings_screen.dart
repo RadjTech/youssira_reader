@@ -1,0 +1,187 @@
+import 'package:flutter/material.dart';
+
+import '../../core/app_services.dart';
+import '../../core/models/reader_settings.dart';
+import '../../core/services/cache/translation_cache.dart';
+
+/// Réglages : langues, moteur de traduction, opacité de l'overlay, cache.
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key, required this.settings});
+
+  final ReaderSettings settings;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late ReaderSettings _settings = widget.settings;
+  bool _checkingNative = true;
+  bool _nativeAvailable = false;
+  int _cacheCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNativeEngine();
+    _loadCacheCount();
+  }
+
+  Future<void> _checkNativeEngine() async {
+    final available = await AppServices.instance.nativeEngine.isAvailable();
+    if (!mounted) return;
+    setState(() {
+      _nativeAvailable = available;
+      _checkingNative = false;
+    });
+    // Si le mode qualité était sélectionné mais que le module natif est
+    // absent, on retombe sur le mode léger.
+    if (!available && _settings.engine == TranslationEngineKind.ct2Quality) {
+      setState(() {
+        _settings = _settings.copyWith(engine: TranslationEngineKind.mlkitLight);
+      });
+    }
+  }
+
+  Future<void> _loadCacheCount() async {
+    final count = await TranslationCache.instance.count();
+    if (!mounted) return;
+    setState(() => _cacheCount = count);
+  }
+
+  Future<void> _clearCache() async {
+    await TranslationCache.instance.clear();
+    await _loadCacheCount();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cache des traductions vidé.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Réglages'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_settings),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+      body: ListView(
+        children: [
+          _sectionHeader('Langues'),
+          _languageDropdown(
+            label: 'Langue du document',
+            value: _settings.sourceBcp,
+            onChanged: (value) =>
+                setState(() => _settings = _settings.copyWith(sourceBcp: value)),
+          ),
+          _languageDropdown(
+            label: 'Traduire vers',
+            value: _settings.targetBcp,
+            onChanged: (value) =>
+                setState(() => _settings = _settings.copyWith(targetBcp: value)),
+          ),
+          const Divider(height: 32),
+          _sectionHeader('Moteur de traduction'),
+          RadioListTile<TranslationEngineKind>(
+            title: const Text('Léger — ML Kit'),
+            subtitle: const Text(
+              '~30 Mo par langue, très rapide, téléchargé par Google Play '
+              'Services. Recommandé.',
+            ),
+            value: TranslationEngineKind.mlkitLight,
+            groupValue: _settings.engine,
+            onChanged: (value) =>
+                setState(() => _settings = _settings.copyWith(engine: value)),
+          ),
+          RadioListTile<TranslationEngineKind>(
+            title: const Text('Qualité — CTranslate2'),
+            subtitle: Text(
+              _checkingNative
+                  ? 'Vérification du module natif…'
+                  : _nativeAvailable
+                      ? 'Modèles opus-mt / NLLB int8, meilleure qualité.'
+                      : 'Module natif non compilé dans ce build — '
+                          'voir engine/README.md.',
+            ),
+            value: TranslationEngineKind.ct2Quality,
+            groupValue: _settings.engine,
+            onChanged: _nativeAvailable && !_checkingNative
+                ? (value) => setState(
+                      () => _settings = _settings.copyWith(engine: value),
+                    )
+                : null,
+          ),
+          const Divider(height: 32),
+          _sectionHeader('Calque de traduction'),
+          ListTile(
+            title: const Text('Opacité du fond'),
+            subtitle: Slider(
+              value: _settings.overlayOpacity,
+              min: 0.5,
+              max: 1.0,
+              divisions: 10,
+              label: '${(_settings.overlayOpacity * 100).round()}%',
+              onChanged: (value) => setState(
+                () => _settings = _settings.copyWith(overlayOpacity: value),
+              ),
+            ),
+          ),
+          const Divider(height: 32),
+          _sectionHeader('Cache'),
+          ListTile(
+            title: const Text('Traductions en cache'),
+            subtitle: Text('$_cacheCount entrées'),
+            trailing: OutlinedButton.icon(
+              onPressed: _cacheCount > 0 ? _clearCache : null,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Vider'),
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+      ),
+    );
+  }
+
+  Widget _languageDropdown({
+    required String label,
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          for (final entry in LanguageCatalog.supported.entries)
+            DropdownMenuItem(
+              value: entry.key,
+              child: Text('${entry.value} (${entry.key})'),
+            ),
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+}

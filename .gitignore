@@ -1,0 +1,18 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+*.iml
+
+# Modèles IA (trop lourds pour git) — voir README §Installation
+assets/models/*
+!assets/models/.gitkeep
+
+# Code généré drift (régénéré avec build_runner)
+lib/core/services/cache/translation_cache.g.dart
+
+# Plateformes générées via `flutter create .` si non personnalisées
+.DS_Store
