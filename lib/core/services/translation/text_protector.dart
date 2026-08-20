@@ -72,14 +72,19 @@ class TextProtector {
     return MaskedText(masked, remaining, mapping);
   }
 
-  /// Restaure les placeholders dans la traduction.
+  /// Restaure les placeholders dans la traduction. Tolérant : certains
+  /// moteurs altèrent les crochets (`[[3]]` → `[ 3 ]`, `{3}`…) ; on accepte
+  /// une famille de délimiteurs autour de l'identifiant.
   static String restore(String translated, MaskedText masked) {
-    return translated.replaceAllMapped(_placeholder, (match) {
+    return translated.replaceAllMapped(_loosePlaceholder, (match) {
       final id = int.tryParse(match[1]!);
-      if (id == null) return match[0]!;
-      return masked.mapping[id] ?? match[0]!;
+      if (id == null || !masked.mapping.containsKey(id)) return match[0]!;
+      return masked.mapping[id]!;
     });
   }
+
+  static final RegExp _loosePlaceholder =
+      RegExp(r'[\[⟦{(<«]{1,2}\s*(\d+)\s*[\]⟧})>»]{1,2}');
 
   /// true si le bloc ne contient quasiment rien à traduire (que des éléments
   /// protégés) : on le laisse alors tel quel, sans calque.

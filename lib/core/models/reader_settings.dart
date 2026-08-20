@@ -24,8 +24,12 @@ enum ReadingMode {
   /// PDF original seul.
   original,
 
-  /// Calque de traduction superposé au texte original.
+  /// Calque de traduction superposé au texte original (hybride : marqueur si
+  /// la traduction ne rentre pas dans le bloc).
   translated,
+
+  /// Mode lecture : traduction retypographiée comme un ebook.
+  reflow,
 }
 
 /// Réglages de lecture et de traduction.

@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../model_paths.dart';
 import 'translation_engine.dart';
 
 /// Mode « qualité » : CTranslate2 + opus-mt / NLLB (quantifiés int8), appelés
@@ -42,12 +43,19 @@ class NativeTranslationEngine implements TranslationEngine {
         'Voir engine/README.md pour le compiler.',
       );
     }
-    await _channel.invokeMethod<void>('initialize', {
+    final modelDir = await ModelPaths.ct2ModelDir(fromBcp, toBcp);
+    final ok = await _channel.invokeMethod<bool>('initialize', {
       'sourceLang': fromBcp,
       'targetLang': toBcp,
-      // TODO(mode qualité) : passer ici le chemin du modèle téléchargé à la
-      // demande (Play Asset Delivery) plutôt qu'un chemin embarqué.
+      'modelDir': modelDir,
     });
+    if (ok != true) {
+      throw StateError(
+        'Modèle CTranslate2 introuvable ou invalide dans $modelDir. '
+        'Convertissez opus-mt avec ct2-transformers-converter '
+        '(voir engine/README.md).',
+      );
+    }
   }
 
   @override

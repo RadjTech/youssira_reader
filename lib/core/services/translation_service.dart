@@ -1,6 +1,7 @@
 import '../models/reader_settings.dart';
 import '../models/text_block.dart';
 import 'cache/translation_cache.dart';
+import 'translation/text_normalizer.dart';
 import 'translation/text_protector.dart';
 import 'translation/translation_engine.dart';
 
@@ -60,7 +61,7 @@ class TranslationService {
   }) async {
     final impl = engineFor(engine);
     final key = TranslationCache.keyFor(
-      text: block.text,
+      text: TextNormalizer.normalize(block.text),
       fromBcp: fromBcp,
       toBcp: toBcp,
       engineId: impl.id,
@@ -78,7 +79,7 @@ class TranslationService {
       );
     }
 
-    final masked = TextProtector.mask(block.text);
+    final masked = TextProtector.mask(TextNormalizer.normalize(block.text));
     final rawTranslated =
         await impl.translate(masked.masked, fromBcp: fromBcp, toBcp: toBcp);
     final translated = TextProtector.restore(rawTranslated, masked);

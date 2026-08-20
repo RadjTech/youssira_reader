@@ -73,28 +73,63 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
       final height = block.height * scale;
+      final fontSize = math.max(block.fontSizeHint * scale, 6);
 
-      // Le calque reste STRICTEMENT dans le rectangle du bloc d'origine :
-      // le document traduit garde exactement la silhouette de l'original.
-      overlays.add(
-        Positioned(
-          left: left,
-          top: top,
-          width: width,
-          height: height,
-          child: _TranslationOverlayBox(
-            original: block.text,
-            translated: progress.translatedText!,
-            fontSize: math.max(block.fontSizeHint * scale, 6),
-            opacity: controller.settings.overlayOpacity,
-            textColor: block.textColor,
-            backgroundColor: block.backgroundColor,
-            bold: block.bold,
+      if (_fitsInBlock(progress.translatedText!, block, scale, fontSize)) {
+        // La traduction rentre : calque STRICTEMENT dans le rectangle
+        // d'origine — le document garde la silhouette de l'original.
+        overlays.add(
+          Positioned(
+            left: left,
+            top: top,
+            width: width,
+            height: height,
+            child: _TranslationOverlayBox(
+              original: block.text,
+              translated: progress.translatedText!,
+              fontSize: fontSize,
+              opacity: controller.settings.overlayOpacity,
+              textColor: block.textColor,
+              backgroundColor: block.backgroundColor,
+              bold: block.bold,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // Traduction trop longue pour le bloc : on NE MASQUE PAS l'original
+        // (pas de calque délavé). Marqueur discret ; un tap ouvre la
+        // traduction dans un panneau.
+        overlays.add(
+          Positioned(
+            left: left,
+            top: top,
+            width: width,
+            height: height,
+            child: _OverflowMarker(
+              original: block.text,
+              translated: progress.translatedText!,
+            ),
+          ),
+        );
+      }
     }
     return overlays;
+  }
+
+  /// Estime si la traduction tient dans le bloc sans rétrécir exagérément la
+  /// police (largeur moyenne d'un caractère ≈ 0,55 × corps).
+  bool _fitsInBlock(
+    String translated,
+    TextBlock block,
+    double scale,
+    double fontSize,
+  ) {
+    final lineHeight = fontSize * 1.1;
+    final boxWidth = block.width * scale;
+    final boxHeight = block.height * scale;
+    final charsPerLine = math.max(1, (boxWidth / (fontSize * 0.55)).floor());
+    final linesNeeded = (translated.length / charsPerLine).ceil();
+    return linesNeeded * lineHeight <= boxHeight + lineHeight * 0.6;
   }
 
   Widget _buildPromptOrProgress(ReaderController controller) {
@@ -228,6 +263,69 @@ class _TranslationOverlayBox extends StatelessWidget {
             child: const Text('OK'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bloc dont la traduction est trop longue pour tenir dans le rectangle
+/// d'origine : l'original reste visible et lisible, un soulignement coloré
+/// signale la traduction disponible ; un tap l'ouvre dans un panneau.
+class _OverflowMarker extends StatelessWidget {
+  const _OverflowMarker({required this.original, required this.translated});
+
+  final String original;
+  final String translated;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showTranslation(context),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Color(0xCC1B6E5C), width: 2),
+          ),
+        ),
+        child: const Align(
+          alignment: Alignment.bottomRight,
+          child: Icon(Icons.translate, size: 10, color: Color(0xCC1B6E5C)),
+        ),
+      ),
+    );
+  }
+
+  void _showTranslation(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Traduction',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  translated,
+                  style: const TextStyle(fontSize: 16, height: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Original : $original',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }

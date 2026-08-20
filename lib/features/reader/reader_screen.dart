@@ -6,6 +6,7 @@ import '../../core/models/reader_settings.dart';
 import '../settings/settings_screen.dart';
 import 'page_translation_overlay.dart';
 import 'reader_controller.dart';
+import 'reflow_reader_view.dart';
 
 /// Écran de lecture : viewer PDF natif (zoom/pinch/pan intégrés) + calques de
 /// traduction superposés via `pageOverlaysBuilder`, donc solidaires du zoom.
@@ -29,6 +30,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String get _fileName {
     final segments = Uri.file(widget.path).pathSegments;
     return segments.isNotEmpty ? segments.last : 'Document';
+  }
+
+  void _attachOnce(PdfDocument document) {
+    if (_attached) return;
+    _attached = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.attachDocument(document);
+    });
   }
 
   @override
@@ -80,20 +89,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       '${pair.from.toUpperCase()} → ${pair.to.toUpperCase()}',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
-                    IconButton(
-                      tooltip: isTranslated
-                          ? 'Revenir au texte original'
-                          : 'Afficher la traduction',
+                    PopupMenuButton<ReadingMode>(
+                      tooltip: 'Mode de lecture',
                       icon: Icon(
-                        isTranslated ? Icons.menu_book : Icons.translate,
+                        controller.settings.mode == ReadingMode.translated
+                            ? Icons.translate
+                            : controller.settings.mode == ReadingMode.reflow
+                                ? Icons.article
+                                : Icons.menu_book,
                       ),
-                      onPressed: () => controller.updateSettings(
-                        controller.settings.copyWith(
-                          mode: isTranslated
-                              ? ReadingMode.original
-                              : ReadingMode.translated,
+                      onSelected: (mode) => controller.updateSettings(
+                        controller.settings.copyWith(mode: mode),
+                      ),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: ReadingMode.original,
+                          child: Text('Document original'),
                         ),
-                      ),
+                        PopupMenuItem(
+                          value: ReadingMode.translated,
+                          child: Text('Traduction superposée'),
+                        ),
+                        PopupMenuItem(
+                          value: ReadingMode.reflow,
+                          child: Text('Mode lecture (ebook)'),
+                        ),
+                      ],
                     ),
                     IconButton(
                       tooltip: 'Traduire tout le document',
@@ -118,38 +139,54 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ],
         ),
-        body: PdfViewer.file(
-          widget.path,
-          params: PdfViewerParams(
-            // Les calques de traduction vivent DANS le viewer : ils suivent
-            // naturellement le zoom et le pan.
-            pageOverlaysBuilder: (context, pageRect, page) {
-              if (!_attached) {
-                _attached = true;
-                final document = page.document;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  widget.controller.attachDocument(document);
-                });
-              }
-              return [
-                PageTranslationOverlay(page: page, pageRect: pageRect),
-              ];
-            },
-            // Signal visuel pendant le chargement initial du document.
-            loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
-                const Center(
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 12),
-                      Text('Ouverture du document…'),
-                    ],
-                  ),
-                ),
+        body: Consumer<ReaderController>(
+          builder: (context, controller, _) {
+            // Mode lecture : document retypographié comme un ebook.
+            if (controller.settings.mode == ReadingMode.reflow) {
+              return PdfDocumentViewBuilder.file(
+                widget.path,
+                builder: (context, document) {
+                  if (document == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  _attachOnce(document);
+                  return ReflowReaderView(document: document);
+                },
+              );
+            }
+            return _buildViewer();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Viewer PDF natif (zoom/pinch/pan) + calques solidaires du zoom.
+  Widget _buildViewer() {
+    return PdfViewer.file(
+      widget.path,
+      params: PdfViewerParams(
+        // Les calques de traduction vivent DANS le viewer : ils suivent
+        // naturellement le zoom et le pan.
+        pageOverlaysBuilder: (context, pageRect, page) {
+          _attachOnce(page.document);
+          return [
+            PageTranslationOverlay(page: page, pageRect: pageRect),
+          ];
+        },
+        // Signal visuel pendant le chargement initial du document.
+        loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
+            const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Ouverture du document…'),
+                ],
               ),
             ),
           ),
