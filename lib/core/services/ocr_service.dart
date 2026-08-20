@@ -1,6 +1,9 @@
 import 'dart:io';
 
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+// NB : ML Kit définit aussi une classe `TextBlock` — on la masque pour
+// utiliser notre modèle métier (core/models/text_block.dart).
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart'
+    hide TextBlock;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -21,7 +24,7 @@ class OcrService {
   static const _renderDpi = 150.0;
 
   Future<List<TextBlock>> recognizePage(PdfPage page) async {
-    final scale = _renderDpi / 72.0; // points → pixels
+    const scale = _renderDpi / 72.0; // points → pixels
     final width = (page.width * scale).round();
     final height = (page.height * scale).round();
 
@@ -29,7 +32,7 @@ class OcrService {
     final rendered = await page.render(width: width, height: height);
     if (rendered == null) return const [];
     final image = rendered.createImageNF();
-    await rendered.dispose();
+    rendered.dispose();
 
     // 2. ML Kit lit depuis un fichier : on écrit un PNG temporaire.
     final tmp = await getTemporaryDirectory();
@@ -46,7 +49,7 @@ class OcrService {
         for (final line in textBlock.lines) {
           final text = line.text.trim();
           final px = line.boundingBox;
-          if (text.isEmpty || px == null) continue;
+          if (text.isEmpty) continue;
 
           blocks.add(
             TextBlock(

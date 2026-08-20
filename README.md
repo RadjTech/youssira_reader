@@ -73,7 +73,7 @@ Principes :
 ### **5. Installation & Build**
 
 #### **Prérequis**
-- Flutter 3.24+ / Dart 3.5+
+- Flutter 3.32+ / Dart 3.8+ (utilise les APIs Material récentes : `RadioGroup`)
 - Android Studio (le projet cible Android en priorité)
 - `minSdkVersion 26` (Android 8+)
 

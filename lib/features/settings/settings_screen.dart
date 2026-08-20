@@ -87,34 +87,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
           _sectionHeader('Moteur de traduction'),
-          RadioListTile<TranslationEngineKind>(
-            title: const Text('Léger — ML Kit'),
-            subtitle: const Text(
-              '~30 Mo par langue, très rapide, téléchargé par Google Play '
-              'Services. Recommandé.',
-            ),
-            value: TranslationEngineKind.mlkitLight,
+          RadioGroup<TranslationEngineKind>(
             groupValue: _settings.engine,
-            onChanged: (value) =>
-                setState(() => _settings = _settings.copyWith(engine: value)),
-          ),
-          RadioListTile<TranslationEngineKind>(
-            title: const Text('Qualité — CTranslate2'),
-            subtitle: Text(
-              _checkingNative
-                  ? 'Vérification du module natif…'
-                  : _nativeAvailable
-                      ? 'Modèles opus-mt / NLLB int8, meilleure qualité.'
-                      : 'Module natif non compilé dans ce build — '
-                          'voir engine/README.md.',
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _settings = _settings.copyWith(engine: value));
+            },
+            child: Column(
+              children: [
+                RadioListTile<TranslationEngineKind>(
+                  title: const Text('Léger — ML Kit'),
+                  subtitle: const Text(
+                    '~30 Mo par langue, très rapide, téléchargé par Google '
+                    'Play Services. Recommandé.',
+                  ),
+                  value: TranslationEngineKind.mlkitLight,
+                ),
+                RadioListTile<TranslationEngineKind>(
+                  title: const Text('Qualité — CTranslate2'),
+                  subtitle: Text(
+                    _checkingNative
+                        ? 'Vérification du module natif…'
+                        : _nativeAvailable
+                            ? 'Modèles opus-mt / NLLB int8, meilleure qualité.'
+                            : 'Module natif non compilé dans ce build — '
+                                'voir engine/README.md.',
+                  ),
+                  value: TranslationEngineKind.ct2Quality,
+                  enabled: _nativeAvailable && !_checkingNative,
+                ),
+              ],
             ),
-            value: TranslationEngineKind.ct2Quality,
-            groupValue: _settings.engine,
-            onChanged: _nativeAvailable && !_checkingNative
-                ? (value) => setState(
-                      () => _settings = _settings.copyWith(engine: value),
-                    )
-                : null,
           ),
           const Divider(height: 32),
           _sectionHeader('Calque de traduction'),
@@ -168,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
