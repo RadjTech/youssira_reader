@@ -112,3 +112,49 @@ passe ce chemin à `initialize` (`modelDir`).
 
 **Option production (roadmap)** : Play Asset Delivery, asset pack
 `on-demand`.
+
+# Chat local — llama.cpp (assistant du document)
+
+Assistant 100 % hors-ligne (résumé, grandes lignes, questions-réponses)
+propulsé par Qwen2.5-0.5B-Instruct GGUF quantisé (~470 Mo), téléchargé
+à la demande depuis l'app (écran Assistant) — jamais dans l'APK.
+
+### 1. Compiler llama.cpp pour Android
+
+```bash
+git clone https://github.com/ggml-org/llama.cpp
+cmake -S llama.cpp -B llama-android \
+  -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-26 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=ON \
+  -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=OFF
+cmake --build llama-android -j8
+cmake --install llama-android --prefix llama-android/install
+```
+
+Résultat : `libllama.so` (+ `libggml*.so`) et `include/` dans `install/`.
+
+### 2. Lier au build Flutter
+
+Comme pour CTranslate2 (§3) : copier les `.so` dans
+`android/app/src/main/jniLibs/arm64-v8a/`, reprendre
+`engine/CMakeLists.txt` avec `-DLLAMA_ROOT=<...>/install` pour produire
+`libyoussira_llama.so`.
+
+### 3. Enregistrer le plugin
+
+Dans `MainActivity.kt`, ajouter :
+
+```kotlin
+flutterEngine.plugins.add(LlamaChatPlugin())
+```
+
+### 4. Modèle
+
+Dans l'app : icône robot → « Télécharger le modèle » (barre de
+progression) ou « Importer un GGUF ». D'autres GGUF fonctionnent
+(recommandé : Q4_K_M, 0.5B à 1.5B pour un téléphone ; renommer le
+fichier importé en `qwen2.5-0.5b-instruct-q4_k_m.gguf` ou écraser
+celui-ci dans `<appSupport>/models/llm/`).

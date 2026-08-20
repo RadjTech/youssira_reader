@@ -75,6 +75,24 @@ class ModelPaths {
   static Future<void> deleteDirectory(String path) =>
       Directory(path).delete(recursive: true);
 
+  // --- Chat local (llama.cpp) ---------------------------------------------
+
+  /// Nom du modèle GGUF par défaut (Qwen2.5-0.5B-Instruct, Q4_K_M, ~470 Mo),
+  /// téléchargé à la demande — jamais dans l'APK.
+  static const llmFileName = 'qwen2.5-0.5b-instruct-q4_k_m.gguf';
+
+  static const llmDownloadUrl =
+      'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/'
+      'qwen2.5-0.5b-instruct-q4_k_m.gguf';
+
+  static Future<String> llmModelPath() async {
+    final base = await getApplicationSupportDirectory();
+    return p.join(base.path, 'models', 'llm', llmFileName);
+  }
+
+  static Future<bool> llmModelExists() async =>
+      File(await llmModelPath()).exists();
+
   /// Copie récursive [from] → [to] (import du modèle depuis un dossier
   /// choisi par l'utilisateur, ex. Download/).
   static Future<void> copyDirectory(String from, String to) async {

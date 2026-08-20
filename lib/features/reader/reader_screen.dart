@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
 import '../../core/services/pdf_export_service.dart';
+import '../assistant/assistant_screen.dart';
 import '../settings/settings_screen.dart';
 import 'page_translation_overlay.dart';
 import 'reader_controller.dart';
@@ -260,6 +261,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           : const Icon(Icons.done_all),
                       onPressed:
                           controller.busy ? null : () => _translateAll(controller),
+                    ),
+                    IconButton(
+                      tooltip: 'Assistant du document (chat local)',
+                      icon: const Icon(Icons.smart_toy_outlined),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AssistantScreen(controller: controller),
+                        ),
+                      ),
                     ),
                     IconButton(
                       tooltip: 'Exporter le PDF traduit',
