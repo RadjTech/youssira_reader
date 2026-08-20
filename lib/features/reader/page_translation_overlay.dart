@@ -5,6 +5,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
+import '../../core/models/text_block.dart';
 import 'reader_controller.dart';
 
 /// Calques de traduction d'une page, rendus DANS le viewer pdfrx via

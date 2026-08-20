@@ -79,8 +79,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
           actions: [
             Consumer<ReaderController>(
               builder: (context, controller, _) {
-                final isTranslated =
-                    controller.settings.mode == ReadingMode.translated;
                 final pair = controller.effectivePair;
                 return Row(
                   mainAxisSize: MainAxisSize.min,
