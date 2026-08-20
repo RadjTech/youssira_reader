@@ -10,7 +10,7 @@ import 'translation_engine.dart';
 /// [isAvailable] retourne false et l'UI propose uniquement le mode léger.
 class NativeTranslationEngine implements TranslationEngine {
   static const MethodChannel _channel =
-      MethodChannel('com.youssira.reader/translation');
+      MethodChannel('com.radjtech.youssira_reader/translation');
 
   bool? _available;
 

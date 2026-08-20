@@ -79,15 +79,15 @@ Principes :
 
 #### **1. Cloner**
 ```bash
-git clone https://github.com/ton-user/youssira-reader.git
-cd youssira-reader
+git clone https://github.com/RadjTech/youssira_reader.git
+cd youssira_reader
 ```
 
 #### **2. Générer les dossiers plateformes** (première fois uniquement)
 Le dépôt contient le code Dart + le module natif ; les dossiers `android/`
 sont générés par Flutter :
 ```bash
-flutter create --org com.youssira --project-name youssira_reader --platforms android .
+flutter create --org com.radjtech --project-name youssira_reader --platforms android .
 ```
 Pense à aligner `minSdkVersion` sur 26 dans `android/app/build.gradle`.
 

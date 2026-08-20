@@ -31,14 +31,14 @@ std::string to_string(JNIEnv* env, jstring value) {
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
-Java_com_youssira_reader_NativeTranslationPlugin_nativeIsAvailable(
+Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeIsAvailable(
     JNIEnv* /*env*/, jclass /*clazz*/) {
   // La bibliothèque est liée : le moteur est disponible.
   return JNI_TRUE;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_youssira_reader_NativeTranslationPlugin_nativeInitialize(
+Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeInitialize(
     JNIEnv* env, jclass /*clazz*/, jstring model_dir, jstring source_lang,
     jstring target_lang, jint threads) {
   const std::string model_dir_str = to_string(env, model_dir);
@@ -62,7 +62,7 @@ Java_com_youssira_reader_NativeTranslationPlugin_nativeInitialize(
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_youssira_reader_NativeTranslationPlugin_nativeTranslate(
+Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeTranslate(
     JNIEnv* env, jclass /*clazz*/, jstring text) {
   const std::string input = to_string(env, text);
 
@@ -83,7 +83,7 @@ Java_com_youssira_reader_NativeTranslationPlugin_nativeTranslate(
 }
 
 JNIEXPORT void JNICALL
-Java_com_youssira_reader_NativeTranslationPlugin_nativeShutdown(
+Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeShutdown(
     JNIEnv* /*env*/, jclass /*clazz*/) {
   std::lock_guard<std::mutex> lock(g_mutex);
   // g_translator.reset();

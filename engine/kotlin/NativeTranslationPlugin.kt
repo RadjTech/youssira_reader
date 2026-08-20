@@ -1,4 +1,4 @@
-package com.youssira.reader
+package com.radjtech.youssira_reader
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
@@ -7,7 +7,7 @@ import io.flutter.plugin.common.MethodChannel
 /**
  * Pont Flutter ↔ CTranslate2 (via JNI).
  *
- * Canal : "com.youssira.reader/translation".
+ * Canal : "com.radjtech.youssira_reader/translation".
  * Voir engine/README.md pour compiler la bibliothèque native
  * (libyoussira_ct2.so + libctranslate2.so).
  *
@@ -51,7 +51,10 @@ class NativeTranslationPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(binding.binaryMessenger, "com.youssira.reader/translation")
+        channel = MethodChannel(
+            binding.binaryMessenger,
+            "com.radjtech.youssira_reader/translation",
+        )
         channel.setMethodCallHandler(this)
     }
 

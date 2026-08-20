@@ -10,7 +10,7 @@ Ce dossier contient le pont natif entre Flutter et [CTranslate2](https://github.
 Flutter (Dart)                    Android (Kotlin)                  Natif (C++)
 NativeTranslationEngine ────────► NativeTranslationPlugin ────────► ct2_bridge.cpp
  MethodChannel                     MethodChannel handler             JNI → ctranslate2::Translator
- 'com.youssira.reader/translation'                                   (libyoussira_ct2.so)
+ 'com.radjtech.youssira_reader/translation'                                   (libyoussira_ct2.so)
 ```
 
 Méthodes du canal :
@@ -72,7 +72,7 @@ android {
 
 ### 4. Enregistrer le plugin
 
-Dans `android/app/src/main/kotlin/com/youssira/reader/MainActivity.kt` :
+Dans `android/app/src/main/kotlin/com/radjtech/youssira_reader/MainActivity.kt` :
 
 ```kotlin
 class MainActivity : FlutterActivity() {
