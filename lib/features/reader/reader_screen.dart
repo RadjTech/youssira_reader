@@ -137,7 +137,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ];
             },
             // Signal visuel pendant le chargement initial du document.
-            loadingBannerBuilder: (context, size) => const Center(
+            loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
+                const Center(
               child: Card(
                 child: Padding(
                   padding: EdgeInsets.all(20),
