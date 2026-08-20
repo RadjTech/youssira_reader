@@ -72,21 +72,21 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final left = block.left * scale;
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
-      final height = block.height * scale;
-      final fontSize = math.max(block.fontSizeHint * scale, 6.0);
 
       overlays.add(
         Positioned(
           left: left,
           top: top,
           width: width,
-          height: height,
+          // Pas de hauteur fixée (recette de la toute première version,
+          // rendu « Google Lens ») : le texte traduit s'enroule à taille
+          // LISIBLE et la boîte grandit vers le bas si la traduction est
+          // plus longue que l'original — jamais de police microscopique.
           child: _TranslationOverlayBox(
             original: block.text,
             translated: progress.translatedText!,
-            fontSize: fontSize,
-            boxWidth: width,
-            boxHeight: height,
+            fontSize: math.max(block.fontSizeHint * scale * 0.8, 9.0),
+            padding: 2 * scale,
             opacity: controller.settings.overlayOpacity,
             textColor: block.textColor,
             backgroundColor: block.backgroundColor,
@@ -164,25 +164,23 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   }
 }
 
-/// Le calque d'un bloc, style « Google Lens » :
-/// - fond UNIFORME (page blanche, encadré uni) → patch opaque de la couleur
-///   de fond échantillonnée : l'original est recouvert, invisible ;
-/// - fond COMPLEXE (image, capture, dégradé) → AUCUN rectangle, le texte est
-///   posé avec un halo contrasté pour rester lisible sans dégrader le PDF ;
-/// - texte = couleur du texte d'origine, avec garde de contraste (jamais de
-///   texte invisible sur fond proche) ; graisse détectée.
-/// Adaptation au débordement : le corps est réduit par paliers (plancher
-/// 7 px), le nombre de lignes augmente et l'interligne se resserre jusqu'à
-/// ce que TOUTE la traduction tienne STRICTEMENT dans le rectangle
-/// d'origine ; en dernier recours seulement, troncature avec « … ».
+/// Le calque d'un bloc, recette de la toute première version (rendu
+/// « Google Lens ») : texte traduit LISIBLE et enroulé sur un patch qui
+/// recouvre l'original ; la boîte grandit vers le bas si besoin.
+/// Améliorations conservées sans changer le rendu sur page blanche :
+/// - patch = couleur de fond échantillonnée (blanc sur page blanche) au lieu
+///   de blanc forcé, donc invisible sur la page ;
+/// - fond COMPLEXE (image, capture, dégradé) → AUCUN rectangle, texte avec
+///   halo contrasté pour ne pas dégrader le PDF ;
+/// - garde de contraste texte/fond (jamais de texte invisible) ;
+/// - graisse du texte d'origine respectée.
 /// Tap = texte original.
 class _TranslationOverlayBox extends StatelessWidget {
   const _TranslationOverlayBox({
     required this.original,
     required this.translated,
     required this.fontSize,
-    required this.boxWidth,
-    required this.boxHeight,
+    required this.padding,
     required this.opacity,
     required this.textColor,
     required this.backgroundColor,
@@ -193,15 +191,12 @@ class _TranslationOverlayBox extends StatelessWidget {
   final String original;
   final String translated;
   final double fontSize;
-  final double boxWidth;
-  final double boxHeight;
+  final double padding;
   final double opacity;
   final int textColor;
   final int backgroundColor;
   final bool bold;
   final bool uniformBackground;
-
-  static const double _minFontSize = 7.0;
 
   static double _lum(int c) {
     final r = (c >> 16) & 0xFF;
@@ -210,54 +205,14 @@ class _TranslationOverlayBox extends StatelessWidget {
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   }
 
-  TextStyle _style(double size, double lineHeight, Color color,
-          {List<Shadow>? shadows}) =>
-      TextStyle(
-        fontSize: size,
-        height: lineHeight,
-        color: color,
-        fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
-        shadows: shadows,
-      );
-
-  /// Plus grand corps ≤ [fontSize] pour lequel la traduction entière tient
-  /// dans [boxWidth]×[boxHeight] ; à défaut, le plancher (la troncature est
-  /// alors inévitable mais le rectangle reste respecté).
-  ({double size, int maxLines, double lineHeight}) _autoFit() {
-    double size = fontSize;
-    while (true) {
-      final lineHeight = size * (size >= fontSize ? 1.1 : 1.05);
-      final maxLines = math.max(1, (boxHeight / lineHeight).floor());
-      final painter = TextPainter(
-        text: TextSpan(
-          text: translated,
-          // La couleur n'influence pas la mesure : noir arbitraire.
-          style: _style(size, lineHeight, const Color(0xFF000000)),
-        ),
-        textDirection: TextDirection.ltr,
-        textScaler: TextScaler.noScaling,
-        maxLines: maxLines,
-      )..layout(maxWidth: boxWidth);
-      if (!painter.didExceedMaxLines || size <= _minFontSize) {
-        return (size: size, maxLines: maxLines, lineHeight: lineHeight);
-      }
-      size = math.max(_minFontSize, size * 0.85);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final fit = _autoFit();
     final bgLum = _lum(backgroundColor);
     // Garde de contraste : jamais de texte fondu dans le fond.
     var color = textColor;
     if ((_lum(color) - bgLum).abs() < 0.3) {
-      color = bgLum > 0.5 ? 0xFF111111 : 0xFFFFFFFF;
+      color = bgLum > 0.5 ? 0xFF1A1A1A : 0xFFFFFFFF;
     }
-    final style = uniformBackground
-        ? _style(fit.size, fit.lineHeight, Color(color))
-        : _style(fit.size, fit.lineHeight, Color(color),
-            shadows: _halo(color));
 
     // Composantes RGB extraites directement de l'ARGB stocké (évite les
     // accès Color.red/green/blue dépréciés).
@@ -271,14 +226,18 @@ class _TranslationOverlayBox extends StatelessWidget {
         color: uniformBackground
             ? Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0))
             : null,
-        alignment: Alignment.centerLeft,
+        padding: EdgeInsets.symmetric(horizontal: padding),
         child: Text(
           translated,
-          maxLines: fit.maxLines,
-          overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.left,
           textScaler: TextScaler.noScaling,
-          style: style,
+          style: TextStyle(
+            fontSize: fontSize,
+            height: 1.2,
+            color: Color(color),
+            fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+            shadows: uniformBackground ? null : _halo(color),
+          ),
         ),
       ),
     );
