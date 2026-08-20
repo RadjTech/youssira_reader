@@ -9,8 +9,8 @@ import 'package:path_provider/path_provider.dart';
 /// `<appSupport>/models/opus-mt-<from>-<to>-ct2/` et doit contenir :
 /// - `model.bin` + `config.json` (sortie de ct2-transformers-converter) ;
 /// - le tokenizer SentencePiece : `source.spm` pour les modèles Marian
-///   (opus-mt, copié automatiquement par le convertisseur), ou
-///   `sentencepiece.bpe.model` pour NLLB.
+///   (opus-mt, à télécharger depuis le repo HF) ou `sentencepiece.bpe.model`
+///   pour NLLB.
 class ModelPaths {
   /// Noms de tokenizer acceptés, par ordre de préférence.
   static const List<String> tokenizerNames = [

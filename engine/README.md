@@ -58,18 +58,19 @@ ct2-transformers-converter \
 
 **Important** : le tokenizer doit accompagner `model.bin`.
 
-- **opus-mt (Marian)** : le convertisseur copie normalement `source.spm`
-  automatiquement dans le dossier de sortie. Si absent, téléchargez
-  `source.spm` depuis https://huggingface.co/Helsinki-NLP/opus-mt-fr-en
-  (fichier de ~800 ko) et placez-le dans `opus-mt-fr-en-ct2/`.
-  Il n'existe PAS de `sentencepiece.bpe.model` sur ce repo — c'est le nom
-  utilisé par NLLB, pas par Marian.
+- **opus-mt (Marian)** : le convertisseur ne copie PAS les fichiers
+  SentencePiece — il produit `shared_vocabulary.json` (vocabulaire texte,
+  inutilisable par notre pont). Téléchargez depuis le repo HF et placez
+  dans le dossier converti :
+  - `source.spm` (~800 ko) : encodage,
+  - `target.spm` (~780 ko) : décodage.
+  Il n'existe PAS de `sentencepiece.bpe.model` sur ces repos — c'est le
+  nom utilisé par NLLB, pas par Marian.
 - **NLLB** : `sentencepiece.bpe.model`, copié automatiquement.
 
-Le dossier final doit contenir : `model.bin`, `config.json`, et le
-tokenizer (`source.spm` ou `sentencepiece.bpe.model`). Pour Marian,
-ajoutez aussi `target.spm` (décodage de la langue cible ; à défaut l'app
-retombe sur `source.spm`).
+Le dossier final doit contenir : `model.bin`, `config.json`,
+`source.spm`, `target.spm` (`shared_vocabulary.json` peut rester, sans
+effet). À défaut de `target.spm`, l'app retombe sur `source.spm`.
 
 Pour 10+ langues (roadmap) : `facebook/nllb-200-distilled-600M` en int8 (~600 Mo).
 

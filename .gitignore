@@ -11,6 +11,13 @@ build/
 assets/models/*
 !assets/models/.gitkeep
 
+# Modèles convertis CTranslate2 placés à la racine du projet
+/opus-mt-*-ct2/
+*.spm
+
+# Sources CTranslate2 clonées pour le build Android (engine/README.md)
+/CTranslate2/
+
 # Code généré drift (régénéré avec build_runner)
 lib/core/services/cache/translation_cache.g.dart
 
