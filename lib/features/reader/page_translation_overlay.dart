@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
@@ -73,15 +71,10 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
 
-      // Police : ~85 % de la taille apparente de l'original pour la
-      // lisibilité, mais JAMAIS plus grande que l'original (sinon les
-      // lignes débordent et chevauchent la suite du document). Plancher
-      // 7 px, lui aussi plafonné à l'original.
+      // Police : 100 % de la taille apparente de l'original (choix
+      // utilisateur) — jamais plus grande, pour éviter tout chevauchement.
       final originalSize = block.fontSizeHint * scale;
-      final fontSize = math.min(
-        originalSize,
-        math.max(originalSize * 0.85, math.min(7.0, originalSize)),
-      );
+      final fontSize = originalSize;
 
       overlays.add(
         Positioned(
