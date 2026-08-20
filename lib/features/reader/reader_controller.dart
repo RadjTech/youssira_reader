@@ -60,9 +60,20 @@ class ReaderController extends ChangeNotifier {
   ReaderSettings get settings => _settings;
   int get pageCount => _pageCount;
 
-  /// true pendant le téléchargement des modèles / la préparation du moteur :
-  /// l'UI affiche un indicateur pour ne pas faire croire à un freeze.
+  /// true UNIQUEMENT pendant la préparation du moteur (détection de langue +
+  /// téléchargement des modèles) : l'UI affiche « téléchargement… ».
   bool get preparing => _preparing;
+
+  /// true pendant toute opération de traduction (page ou document).
+  bool get busy => _busy;
+
+  /// true si des blocs de la page sont en cours de traduction : l'UI
+  /// affiche « traduction en cours… » (les calques arrivent au fil de l'eau).
+  bool isTranslatingPage(int pageNumber) {
+    return blocksForPage(pageNumber).any(
+      (b) => _progress[b.id]?.state == BlockState.translating,
+    );
+  }
 
   String? get detectedLanguage => _detectedLanguage;
 
