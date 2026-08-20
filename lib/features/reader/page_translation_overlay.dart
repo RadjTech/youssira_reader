@@ -162,11 +162,15 @@ class _TranslationOverlayBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = Color(backgroundColor);
+    // Composantes RGB extraites directement de l'ARGB stocké (évite les
+    // accès Color.red/green/blue dépréciés).
+    final r = (backgroundColor >> 16) & 0xFF;
+    final g = (backgroundColor >> 8) & 0xFF;
+    final b = backgroundColor & 0xFF;
     return GestureDetector(
       onTap: () => _showOriginal(context),
       child: Container(
-        color: Color.fromRGBO(bg.red, bg.green, bg.blue, opacity.clamp(0.0, 1.0)),
+        color: Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0)),
         alignment: Alignment.centerLeft,
         child: FittedBox(
           fit: BoxFit.scaleDown,

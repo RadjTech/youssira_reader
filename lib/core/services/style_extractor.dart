@@ -36,7 +36,7 @@ class StyleExtractor {
 
   /// Rend la page en bitmap (~150 dpi) pour analyse.
   static Future<img.Image?> renderForAnalysis(PdfPage page) async {
-    final scale = _dpi / 72.0;
+    const scale = _dpi / 72.0;
     final rendered = await page.render(
       width: (page.width * scale).round(),
       height: (page.height * scale).round(),

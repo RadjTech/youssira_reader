@@ -8,7 +8,7 @@ class CodeDetector {
   );
   static final RegExp _symbols = RegExp(r'[{};]|=>|->|==|!=|\(\)|\[\]');
   static final RegExp _identifiers = RegExp(r'[a-z_]+[A-Z]|\w+_\w+');
-  static final RegExp _quotes = RegExp(r'["\'][^"\']*["\']');
+  static final RegExp _quotes = RegExp('["\'][^"\']*["\']');
   static final RegExp _shellPrompt = RegExp(r'^\s*[\$#>]\s', multiLine: true);
 
   /// Heuristique par score : >= 3 signaux => code.
