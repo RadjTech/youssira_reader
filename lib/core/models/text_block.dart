@@ -31,6 +31,7 @@ class TextBlock {
     this.textColor = 0xDE1A1A1A,
     this.backgroundColor = 0xFFFFFFFF,
     this.bold = false,
+    this.uniformBackground = true,
   });
 
   /// Identifiant stable du contenu du bloc (hash). Sert de clé au cache de
@@ -67,6 +68,11 @@ class TextBlock {
   /// Graisse détectée (heuristique : densité d'encre relative à la page).
   final bool bold;
 
+  /// true si le fond du bloc est uniforme (page blanche, encadré uni…).
+  /// false = fond complexe (image, capture, dégradé) : le calque ne pose
+  /// alors AUCUN rectangle (style Google Lens : texte avec halo).
+  final bool uniformBackground;
+
   double get width => right - left;
   double get height => top - bottom;
 
@@ -80,6 +86,7 @@ class TextBlock {
     required int textColor,
     required int backgroundColor,
     required bool bold,
+    required bool uniformBackground,
   }) {
     return TextBlock(
       id: id,
@@ -94,6 +101,7 @@ class TextBlock {
       textColor: textColor,
       backgroundColor: backgroundColor,
       bold: bold,
+      uniformBackground: uniformBackground,
     );
   }
 

@@ -9,17 +9,30 @@ class BlockStyle {
     required this.textColor,
     required this.backgroundColor,
     required this.bold,
+    required this.uniformBackground,
   });
 
   final int textColor; // ARGB
   final int backgroundColor; // ARGB
   final bool bold;
+
+  /// true si le fond du bloc est uniforme ; false = fond complexe (image,
+  /// capture, dégradé) → le calque ne pose aucun rectangle (style Lens).
+  final bool uniformBackground;
 }
 
 class _CropStats {
-  const _CropStats(this.textColor, this.backgroundColor, this.darkRatio);
+  const _CropStats(
+    this.textColor,
+    this.backgroundColor,
+    this.bgShare,
+    this.darkRatio,
+  );
   final int textColor;
   final int backgroundColor;
+
+  /// Part des pixels de fond dans le bucket dominant (1 = fond très uni).
+  final double bgShare;
   final double darkRatio;
 }
 
@@ -69,6 +82,7 @@ class StyleExtractor {
           textColor: s.textColor,
           backgroundColor: s.backgroundColor,
           bold: median > 0 && s.darkRatio > median * 1.5,
+          uniformBackground: s.bgShare > 0.55,
         ),
     ];
   }
@@ -106,9 +120,27 @@ class StyleExtractor {
       }
     }
 
+    // Le fond est le côté MAJORITAIRE : page claire → pixels clairs
+    // majoritaires ; bandeau/page sombre → pixels foncés majoritaires.
+    // (Ancienne version : fond = clairs, texte = foncés, ce qui inversait
+    // tout sur fond sombre → rectangles blancs sur le PDF.)
+    final bgIsLight = lightPixels.length >= darkPixels.length;
+    final bgPixels = bgIsLight ? lightPixels : darkPixels;
+    final fgPixels = bgIsLight ? darkPixels : lightPixels;
+
+    final bg = _dominantColor(
+      bgPixels,
+      fallback: bgIsLight ? 0xFFFFFFFF : 0xFF000000,
+    );
+    final fg = _dominantColor(
+      fgPixels,
+      fallback: bgIsLight ? 0xFF1A1A1A : 0xFFFFFFFF,
+    );
+
     return _CropStats(
-      _dominantColor(darkPixels, fallback: 0xDE1A1A1A),
-      _dominantColor(lightPixels, fallback: 0xFFFFFFFF),
+      fg.color,
+      bg.color,
+      bg.share,
       darkPixels.length + lightPixels.length == 0
           ? 0.0
           : darkPixels.length / (darkPixels.length + lightPixels.length),
@@ -117,8 +149,12 @@ class StyleExtractor {
 
   /// Couleur dominante : histogramme quantisé (3 bits/canal), puis moyenne
   /// des pixels du bucket gagnant. Ignore les pixels de lissage.
-  static int _dominantColor(List<int> pixels, {required int fallback}) {
-    if (pixels.isEmpty) return fallback;
+  /// [share] = part des pixels dans le bucket gagnant (uniformité).
+  static ({int color, double share}) _dominantColor(
+    List<int> pixels, {
+    required int fallback,
+  }) {
+    if (pixels.isEmpty) return (color: fallback, share: 1.0);
 
     final buckets = <int, List<int>>{};
     for (final p in pixels) {
@@ -132,7 +168,7 @@ class StyleExtractor {
     for (final list in buckets.values) {
       if (list.length > best.length) best = list;
     }
-    if (best.isEmpty) return fallback;
+    if (best.isEmpty) return (color: fallback, share: 1.0);
 
     var r = 0, g = 0, b = 0;
     for (final p in best) {
@@ -140,7 +176,10 @@ class StyleExtractor {
       g += (p >> 8) & 0xFF;
       b += p & 0xFF;
     }
-    return _argb(r ~/ best.length, g ~/ best.length, b ~/ best.length);
+    return (
+      color: _argb(r ~/ best.length, g ~/ best.length, b ~/ best.length),
+      share: best.length / pixels.length,
+    );
   }
 
   static int _argb(int r, int g, int b) =>

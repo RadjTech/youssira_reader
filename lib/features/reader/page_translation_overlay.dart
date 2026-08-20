@@ -91,6 +91,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             textColor: block.textColor,
             backgroundColor: block.backgroundColor,
             bold: block.bold,
+            uniformBackground: block.uniformBackground,
           ),
         ),
       );
@@ -163,10 +164,15 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   }
 }
 
-/// Le calque d'un bloc : fond = couleur de fond échantillonnée du bloc
-/// d'origine, texte = couleur du texte d'origine, graisse détectée.
+/// Le calque d'un bloc, style « Google Lens » :
+/// - fond UNIFORME (page blanche, encadré uni) → patch opaque de la couleur
+///   de fond échantillonnée : l'original est recouvert, invisible ;
+/// - fond COMPLEXE (image, capture, dégradé) → AUCUN rectangle, le texte est
+///   posé avec un halo contrasté pour rester lisible sans dégrader le PDF ;
+/// - texte = couleur du texte d'origine, avec garde de contraste (jamais de
+///   texte invisible sur fond proche) ; graisse détectée.
 /// Adaptation au débordement : le corps est réduit par paliers (plancher
-/// 6 px), le nombre de lignes augmente et l'interligne se resserre jusqu'à
+/// 7 px), le nombre de lignes augmente et l'interligne se resserre jusqu'à
 /// ce que TOUTE la traduction tienne STRICTEMENT dans le rectangle
 /// d'origine ; en dernier recours seulement, troncature avec « … ».
 /// Tap = texte original.
@@ -181,6 +187,7 @@ class _TranslationOverlayBox extends StatelessWidget {
     required this.textColor,
     required this.backgroundColor,
     required this.bold,
+    required this.uniformBackground,
   });
 
   final String original;
@@ -192,14 +199,25 @@ class _TranslationOverlayBox extends StatelessWidget {
   final int textColor;
   final int backgroundColor;
   final bool bold;
+  final bool uniformBackground;
 
-  static const double _minFontSize = 6.0;
+  static const double _minFontSize = 7.0;
 
-  TextStyle _style(double size, double lineHeight) => TextStyle(
+  static double _lum(int c) {
+    final r = (c >> 16) & 0xFF;
+    final g = (c >> 8) & 0xFF;
+    final b = c & 0xFF;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  TextStyle _style(double size, double lineHeight, Color color,
+          {List<Shadow>? shadows}) =>
+      TextStyle(
         fontSize: size,
         height: lineHeight,
-        color: Color(textColor),
+        color: color,
         fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+        shadows: shadows,
       );
 
   /// Plus grand corps ≤ [fontSize] pour lequel la traduction entière tient
@@ -211,7 +229,11 @@ class _TranslationOverlayBox extends StatelessWidget {
       final lineHeight = size * (size >= fontSize ? 1.1 : 1.05);
       final maxLines = math.max(1, (boxHeight / lineHeight).floor());
       final painter = TextPainter(
-        text: TextSpan(text: translated, style: _style(size, lineHeight)),
+        text: TextSpan(
+          text: translated,
+          // La couleur n'influence pas la mesure : noir arbitraire.
+          style: _style(size, lineHeight, const Color(0xFF000000)),
+        ),
         textDirection: TextDirection.ltr,
         textScaler: TextScaler.noScaling,
         maxLines: maxLines,
@@ -226,6 +248,17 @@ class _TranslationOverlayBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fit = _autoFit();
+    final bgLum = _lum(backgroundColor);
+    // Garde de contraste : jamais de texte fondu dans le fond.
+    var color = textColor;
+    if ((_lum(color) - bgLum).abs() < 0.3) {
+      color = bgLum > 0.5 ? 0xFF111111 : 0xFFFFFFFF;
+    }
+    final style = uniformBackground
+        ? _style(fit.size, fit.lineHeight, Color(color))
+        : _style(fit.size, fit.lineHeight, Color(color),
+            shadows: _halo(color));
+
     // Composantes RGB extraites directement de l'ARGB stocké (évite les
     // accès Color.red/green/blue dépréciés).
     final r = (backgroundColor >> 16) & 0xFF;
@@ -234,7 +267,10 @@ class _TranslationOverlayBox extends StatelessWidget {
     return GestureDetector(
       onTap: () => _showOriginal(context),
       child: Container(
-        color: Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0)),
+        // Fond complexe → aucun rectangle : le PDF n'est pas dégradé.
+        color: uniformBackground
+            ? Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0))
+            : null,
         alignment: Alignment.centerLeft,
         child: Text(
           translated,
@@ -242,10 +278,24 @@ class _TranslationOverlayBox extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.left,
           textScaler: TextScaler.noScaling,
-          style: _style(fit.size, fit.lineHeight),
+          style: style,
         ),
       ),
     );
+  }
+
+  /// Halo contrasté pour fond complexe : 4 ombres courtes autour des
+  /// glyphes, couleur opposée au texte (lisibilité type Google Lens).
+  List<Shadow> _halo(int color) {
+    final halo = _lum(color) > 0.5
+        ? const Color(0xCC000000)
+        : const Color(0xCCFFFFFF);
+    return [
+      Shadow(offset: const Offset(-1, -1), blurRadius: 1, color: halo),
+      Shadow(offset: const Offset(1, -1), blurRadius: 1, color: halo),
+      Shadow(offset: const Offset(-1, 1), blurRadius: 1, color: halo),
+      Shadow(offset: const Offset(1, 1), blurRadius: 1, color: halo),
+    ];
   }
 
   void _showOriginal(BuildContext context) {

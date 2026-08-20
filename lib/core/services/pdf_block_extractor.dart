@@ -47,6 +47,7 @@ class PdfBlockExtractor {
           textColor: styles[i].textColor,
           backgroundColor: styles[i].backgroundColor,
           bold: styles[i].bold,
+          uniformBackground: styles[i].uniformBackground,
         ),
     ];
   }

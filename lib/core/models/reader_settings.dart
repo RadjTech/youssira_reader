@@ -24,8 +24,9 @@ enum ReadingMode {
   /// PDF original seul.
   original,
 
-  /// Calque de traduction superposé au texte original (hybride : marqueur si
-  /// la traduction ne rentre pas dans le bloc).
+  /// Calque de traduction superposé au texte original (style Google Lens :
+  /// patch si fond uni, texte avec halo si fond complexe, adaptation
+  /// automatique au débordement).
   translated,
 
   /// Mode lecture : traduction retypographiée comme un ebook.
