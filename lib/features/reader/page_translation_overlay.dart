@@ -5,7 +5,6 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
-import '../../core/models/text_block.dart';
 import 'reader_controller.dart';
 
 /// Calques de traduction d'une page, rendus DANS le viewer pdfrx via
@@ -76,61 +75,27 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final height = block.height * scale;
       final fontSize = math.max(block.fontSizeHint * scale, 6.0);
 
-      if (_fitsInBlock(progress.translatedText!, block, scale, fontSize)) {
-        // La traduction rentre : calque STRICTEMENT dans le rectangle
-        // d'origine — le document garde la silhouette de l'original.
-        overlays.add(
-          Positioned(
-            left: left,
-            top: top,
-            width: width,
-            height: height,
-            child: _TranslationOverlayBox(
-              original: block.text,
-              translated: progress.translatedText!,
-              fontSize: fontSize,
-              opacity: controller.settings.overlayOpacity,
-              textColor: block.textColor,
-              backgroundColor: block.backgroundColor,
-              bold: block.bold,
-            ),
+      overlays.add(
+        Positioned(
+          left: left,
+          top: top,
+          width: width,
+          height: height,
+          child: _TranslationOverlayBox(
+            original: block.text,
+            translated: progress.translatedText!,
+            fontSize: fontSize,
+            boxWidth: width,
+            boxHeight: height,
+            opacity: controller.settings.overlayOpacity,
+            textColor: block.textColor,
+            backgroundColor: block.backgroundColor,
+            bold: block.bold,
           ),
-        );
-      } else {
-        // Traduction trop longue pour le bloc : on NE MASQUE PAS l'original
-        // (pas de calque délavé). Marqueur discret ; un tap ouvre la
-        // traduction dans un panneau.
-        overlays.add(
-          Positioned(
-            left: left,
-            top: top,
-            width: width,
-            height: height,
-            child: _OverflowMarker(
-              original: block.text,
-              translated: progress.translatedText!,
-            ),
-          ),
-        );
-      }
+        ),
+      );
     }
     return overlays;
-  }
-
-  /// Estime si la traduction tient dans le bloc sans rétrécir exagérément la
-  /// police (largeur moyenne d'un caractère ≈ 0,55 × corps).
-  bool _fitsInBlock(
-    String translated,
-    TextBlock block,
-    double scale,
-    double fontSize,
-  ) {
-    final lineHeight = fontSize * 1.1;
-    final boxWidth = block.width * scale;
-    final boxHeight = block.height * scale;
-    final charsPerLine = math.max(1, (boxWidth / (fontSize * 0.55)).floor());
-    final linesNeeded = (translated.length / charsPerLine).ceil();
-    return linesNeeded * lineHeight <= boxHeight + lineHeight * 0.6;
   }
 
   Widget _buildPromptOrProgress(ReaderController controller) {
@@ -199,14 +164,19 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
 }
 
 /// Le calque d'un bloc : fond = couleur de fond échantillonnée du bloc
-/// d'origine, texte = couleur du texte d'origine, graisse détectée. Le tout
-/// ajusté AU rectangle du bloc (FittedBox), sans jamais déborder.
+/// d'origine, texte = couleur du texte d'origine, graisse détectée.
+/// Adaptation au débordement : le corps est réduit par paliers (plancher
+/// 6 px), le nombre de lignes augmente et l'interligne se resserre jusqu'à
+/// ce que TOUTE la traduction tienne STRICTEMENT dans le rectangle
+/// d'origine ; en dernier recours seulement, troncature avec « … ».
 /// Tap = texte original.
 class _TranslationOverlayBox extends StatelessWidget {
   const _TranslationOverlayBox({
     required this.original,
     required this.translated,
     required this.fontSize,
+    required this.boxWidth,
+    required this.boxHeight,
     required this.opacity,
     required this.textColor,
     required this.backgroundColor,
@@ -216,13 +186,46 @@ class _TranslationOverlayBox extends StatelessWidget {
   final String original;
   final String translated;
   final double fontSize;
+  final double boxWidth;
+  final double boxHeight;
   final double opacity;
   final int textColor;
   final int backgroundColor;
   final bool bold;
 
+  static const double _minFontSize = 6.0;
+
+  TextStyle _style(double size, double lineHeight) => TextStyle(
+        fontSize: size,
+        height: lineHeight,
+        color: Color(textColor),
+        fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+      );
+
+  /// Plus grand corps ≤ [fontSize] pour lequel la traduction entière tient
+  /// dans [boxWidth]×[boxHeight] ; à défaut, le plancher (la troncature est
+  /// alors inévitable mais le rectangle reste respecté).
+  ({double size, int maxLines, double lineHeight}) _autoFit() {
+    double size = fontSize;
+    while (true) {
+      final lineHeight = size * (size >= fontSize ? 1.1 : 1.05);
+      final maxLines = math.max(1, (boxHeight / lineHeight).floor());
+      final painter = TextPainter(
+        text: TextSpan(text: translated, style: _style(size, lineHeight)),
+        textDirection: TextDirection.ltr,
+        textScaler: TextScaler.noScaling,
+        maxLines: maxLines,
+      )..layout(maxWidth: boxWidth);
+      if (!painter.didExceedMaxLines || size <= _minFontSize) {
+        return (size: size, maxLines: maxLines, lineHeight: lineHeight);
+      }
+      size = math.max(_minFontSize, size * 0.85);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fit = _autoFit();
     // Composantes RGB extraites directement de l'ARGB stocké (évite les
     // accès Color.red/green/blue dépréciés).
     final r = (backgroundColor >> 16) & 0xFF;
@@ -233,20 +236,13 @@ class _TranslationOverlayBox extends StatelessWidget {
       child: Container(
         color: Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0)),
         alignment: Alignment.centerLeft,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            translated,
-            maxLines: 6,
-            textAlign: TextAlign.left,
-            style: TextStyle(
-              fontSize: fontSize,
-              height: 1.1,
-              color: Color(textColor),
-              fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
-            ),
-          ),
+        child: Text(
+          translated,
+          maxLines: fit.maxLines,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.left,
+          textScaler: TextScaler.noScaling,
+          style: _style(fit.size, fit.lineHeight),
         ),
       ),
     );
@@ -264,69 +260,6 @@ class _TranslationOverlayBox extends StatelessWidget {
             child: const Text('OK'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Bloc dont la traduction est trop longue pour tenir dans le rectangle
-/// d'origine : l'original reste visible et lisible, un soulignement coloré
-/// signale la traduction disponible ; un tap l'ouvre dans un panneau.
-class _OverflowMarker extends StatelessWidget {
-  const _OverflowMarker({required this.original, required this.translated});
-
-  final String original;
-  final String translated;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showTranslation(context),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: Color(0xCC1B6E5C), width: 2),
-          ),
-        ),
-        child: const Align(
-          alignment: Alignment.bottomRight,
-          child: Icon(Icons.translate, size: 10, color: Color(0xCC1B6E5C)),
-        ),
-      ),
-    );
-  }
-
-  void _showTranslation(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Traduction',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  translated,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Original : $original',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
       ),
     );
   }
