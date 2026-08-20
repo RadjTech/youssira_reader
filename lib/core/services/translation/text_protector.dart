@@ -47,6 +47,7 @@ class TextProtector {
       r'https?://\S+', // URLs
       r'[\w.+-]+@[\w-]+\.[A-Za-z]{2,}', // emails
       r'\bv?\d+(?:\.\d+)+\b', // numéros de version : 4.21, v1.2.3
+      r'[.…]{4,}\s*\S{0,8}', // points de conduite de sommaire + n° de page
       r'\b(?:' + _wordNames.map(RegExp.escape).join('|') + r')\b',
       _specialNames.map(RegExp.escape).join('|'),
     ].join('|'),

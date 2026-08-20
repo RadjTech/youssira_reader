@@ -27,10 +27,10 @@ class _CropStats {
 /// chaque bloc : couleur du texte, couleur de fond, graisse.
 ///
 /// PDFium (via pdfrx) n'expose pas les attributs de police au niveau Dart ;
-/// on échantillonne donc les pixels du bloc :
-/// - pixels sombres → couleur moyenne du texte ;
-/// - pixels clairs → couleur moyenne du fond ;
-/// - densité d'encre relative à la médiane de la page → gras.
+/// on échantillonne donc les pixels du bloc. Pour résister au lissage
+/// (anti-aliasing) qui « grise » les moyennes, on ne moyenne PAS tous les
+/// pixels : on prend la couleur DOMINANTE (histogramme quantisé) — le noir
+/// reste noir, le bleu lien reste bleu, le fond blanc reste blanc.
 class StyleExtractor {
   static const double _dpi = 150.0;
 
@@ -81,14 +81,14 @@ class StyleExtractor {
   ) {
     final x0 = (block.left * scale).floor().clamp(0, image.width - 1);
     final x1 = (block.right * scale).ceil().clamp(x0 + 1, image.width);
-    final y0 = ((pageHeightPt - block.top) * scale).floor().clamp(0, image.height - 1);
-    final y1 = ((pageHeightPt - block.bottom) * scale).ceil().clamp(y0 + 1, image.height);
+    final y0 =
+        ((pageHeightPt - block.top) * scale).floor().clamp(0, image.height - 1);
+    final y1 = ((pageHeightPt - block.bottom) * scale)
+        .ceil()
+        .clamp(y0 + 1, image.height);
 
-    var darkCount = 0;
-    var lightCount = 0;
-    var total = 0;
-    var dr = 0, dg = 0, db = 0;
-    var lr = 0, lg = 0, lb = 0;
+    final darkPixels = <int>[];
+    final lightPixels = <int>[];
 
     for (var y = y0; y < y1; y += 2) {
       for (var x = x0; x < x1; x += 2) {
@@ -97,30 +97,50 @@ class StyleExtractor {
         final g = p.g.toInt();
         final b = p.b.toInt();
         final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        total++;
+        final packed = (r << 16) | (g << 8) | b;
         if (luminance < 128) {
-          darkCount++;
-          dr += r;
-          dg += g;
-          db += b;
+          darkPixels.add(packed);
         } else {
-          lightCount++;
-          lr += r;
-          lg += g;
-          lb += b;
+          lightPixels.add(packed);
         }
       }
     }
 
     return _CropStats(
-      darkCount > 0
-          ? _argb(dr ~/ darkCount, dg ~/ darkCount, db ~/ darkCount)
-          : 0xDE1A1A1A,
-      lightCount > 0
-          ? _argb(lr ~/ lightCount, lg ~/ lightCount, lb ~/ lightCount)
-          : 0xFFFFFFFF,
-      total == 0 ? 0.0 : darkCount / total,
+      _dominantColor(darkPixels, fallback: 0xDE1A1A1A),
+      _dominantColor(lightPixels, fallback: 0xFFFFFFFF),
+      darkPixels.length + lightPixels.length == 0
+          ? 0.0
+          : darkPixels.length / (darkPixels.length + lightPixels.length),
     );
+  }
+
+  /// Couleur dominante : histogramme quantisé (3 bits/canal), puis moyenne
+  /// des pixels du bucket gagnant. Ignore les pixels de lissage.
+  static int _dominantColor(List<int> pixels, {required int fallback}) {
+    if (pixels.isEmpty) return fallback;
+
+    final buckets = <int, List<int>>{};
+    for (final p in pixels) {
+      final bucket = (((p >> 16) & 0xE0) << 8) |
+          (((p >> 8) & 0xE0) << 3) |
+          ((p & 0xE0) >> 5);
+      (buckets[bucket] ??= []).add(p);
+    }
+
+    List<int> best = const [];
+    for (final list in buckets.values) {
+      if (list.length > best.length) best = list;
+    }
+    if (best.isEmpty) return fallback;
+
+    var r = 0, g = 0, b = 0;
+    for (final p in best) {
+      r += (p >> 16) & 0xFF;
+      g += (p >> 8) & 0xFF;
+      b += p & 0xFF;
+    }
+    return _argb(r ~/ best.length, g ~/ best.length, b ~/ best.length);
   }
 
   static int _argb(int r, int g, int b) =>

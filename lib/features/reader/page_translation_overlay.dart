@@ -85,7 +85,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
           child: _TranslationOverlayBox(
             original: block.text,
             translated: progress.translatedText!,
-            fontSize: math.max(block.fontSizeHint * scale * 0.8, 4),
+            fontSize: math.max(block.fontSizeHint * scale, 6),
             opacity: controller.settings.overlayOpacity,
             textColor: block.textColor,
             backgroundColor: block.backgroundColor,

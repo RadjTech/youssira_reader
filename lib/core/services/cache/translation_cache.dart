@@ -30,7 +30,19 @@ class TranslationCacheDb extends _$TranslationCacheDb {
   TranslationCacheDb(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (migrator, from) async {
+          if (from < 2) {
+            // v2 : nouvelles règles de « traduction intelligente » (code
+            // laissé intact, points de conduite protégés, couleurs
+            // dominantes). Les entrées antérieures sont obsolètes.
+            await delete(translations).go();
+          }
+        },
+      );
 }
 
 /// Singleton d'accès au cache des traductions.
