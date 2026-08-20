@@ -97,16 +97,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     ),
                     IconButton(
                       tooltip: 'Traduire tout le document',
-                      icon: controller.preparing
+                      icon: controller.busy
                           ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.done_all),
-                      onPressed: controller.preparing
-                          ? null
-                          : () => _translateAll(controller),
+                      onPressed:
+                          controller.busy ? null : () => _translateAll(controller),
                     ),
                     IconButton(
                       tooltip: 'Réglages',

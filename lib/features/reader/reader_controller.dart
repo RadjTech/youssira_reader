@@ -44,7 +44,8 @@ class ReaderController extends ChangeNotifier {
   PdfDocument? _document;
   ReaderSettings _settings;
   String? _detectedLanguage;
-  bool _preparing = false;
+  bool _preparing = false; // téléchargement modèles / préparation moteur
+  bool _busy = false; // opération de traduction en cours
 
   final Map<int, List<TextBlock>> _blocksByPage = {};
   final Set<int> _extractingPages = {};
@@ -153,17 +154,31 @@ class ReaderController extends ChangeNotifier {
     );
   }
 
-  /// Traduit une page. Lève une exception si la préparation échoue (l'UI
-  /// l'affiche en SnackBar) ; [preparing] devient true pendant ce temps.
-  Future<void> translatePage(int pageNumber) async {
-    if (_preparing) return;
+  /// Exécute [fn] avec [preparing] = true (phase de préparation uniquement).
+  Future<T> _withPreparing<T>(Future<T> Function() fn) async {
     _preparing = true;
     notifyListeners();
     try {
-      await _prepareTranslation();
-      await _translatePagePrepared(pageNumber);
+      return await fn();
     } finally {
       _preparing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Traduit une page. Lève une exception si la préparation échoue (l'UI
+  /// l'affiche en SnackBar).
+  /// - [preparing] : vrai pendant détection + téléchargement des modèles ;
+  /// - [busy] : vrai pendant toute l'opération (traduction des blocs).
+  Future<void> translatePage(int pageNumber) async {
+    if (_busy) return;
+    _busy = true;
+    notifyListeners();
+    try {
+      await _withPreparing(() => _prepareTranslation());
+      await _translatePagePrepared(pageNumber);
+    } finally {
+      _busy = false;
       notifyListeners();
     }
   }
@@ -220,17 +235,17 @@ class ReaderController extends ChangeNotifier {
 
   /// Traduit l'intégralité du document, page par page.
   Future<void> translateWholeDocument() async {
-    if (_preparing) return;
-    _preparing = true;
+    if (_busy) return;
+    _busy = true;
     notifyListeners();
     try {
-      await _prepareTranslation();
+      await _withPreparing(() => _prepareTranslation());
       for (var page = 1; page <= _pageCount; page++) {
         await ensureBlocks(page);
         await _translatePagePrepared(page);
       }
     } finally {
-      _preparing = false;
+      _busy = false;
       notifyListeners();
     }
   }

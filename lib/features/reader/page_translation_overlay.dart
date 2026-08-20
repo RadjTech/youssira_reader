@@ -98,42 +98,67 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   }
 
   Widget _buildPromptOrProgress(ReaderController controller) {
-    return Positioned.fill(
-      child: Center(
-        child: controller.preparing
-            ? const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 12),
-                      Text('Préparation des modèles de langue…'),
-                      Text(
-                        '~30 Mo par langue, une seule fois',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            : FilledButton.icon(
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  try {
-                    await controller.translatePage(widget.page.pageNumber);
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Traduction impossible : $e')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.translate),
-                label: Text('Traduire la page ${widget.page.pageNumber}'),
+    final pageNumber = widget.page.pageNumber;
+    Widget content;
+
+    if (controller.preparing) {
+      // Phase de préparation UNIQUEMENT : téléchargement des modèles.
+      content = const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Téléchargement des modèles de langue…'),
+              Text(
+                '~30 Mo par langue, une seule fois',
+                style: TextStyle(fontSize: 12),
               ),
-      ),
-    );
+            ],
+          ),
+        ),
+      );
+    } else if (controller.busy && controller.isTranslatingPage(pageNumber)) {
+      // Traduction des blocs en cours : les calques arrivent au fil de l'eau.
+      content = Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Text('Traduction de la page $pageNumber…'),
+            ],
+          ),
+        ),
+      );
+    } else {
+      content = FilledButton.icon(
+        onPressed: controller.busy
+            ? null
+            : () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await controller.translatePage(pageNumber);
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Traduction impossible : $e')),
+                  );
+                }
+              },
+        icon: const Icon(Icons.translate),
+        label: Text('Traduire la page $pageNumber'),
+      );
+    }
+
+    return Positioned.fill(child: Center(child: content));
   }
 }
 
