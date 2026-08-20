@@ -67,7 +67,9 @@ ct2-transformers-converter \
 - **NLLB** : `sentencepiece.bpe.model`, copié automatiquement.
 
 Le dossier final doit contenir : `model.bin`, `config.json`, et le
-tokenizer (`source.spm` ou `sentencepiece.bpe.model`).
+tokenizer (`source.spm` ou `sentencepiece.bpe.model`). Pour Marian,
+ajoutez aussi `target.spm` (décodage de la langue cible ; à défaut l'app
+retombe sur `source.spm`).
 
 Pour 10+ langues (roadmap) : `facebook/nllb-200-distilled-600M` en int8 (~600 Mo).
 

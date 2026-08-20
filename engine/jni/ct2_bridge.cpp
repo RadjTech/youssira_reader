@@ -24,7 +24,8 @@ namespace {
 
 std::mutex g_mutex;
 std::unique_ptr<ctranslate2::Translator> g_translator;
-std::unique_ptr<ctranslate2::SentencePiece> g_tokenizer;
+std::unique_ptr<ctranslate2::SentencePiece> g_sp_source;
+std::unique_ptr<ctranslate2::SentencePiece> g_sp_target;
 bool g_ready = false;
 
 std::string to_string(JNIEnv* env, jstring value) {
@@ -63,30 +64,33 @@ Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeInitialize(
     g_translator = std::make_unique<ctranslate2::Translator>(
         model_dir_str, ctranslate2::Device::CPU, 0, config);
 
-    // Tokenizer SentencePiece copié à côté de model.bin :
-    // - source.spm pour les modèles Marian (opus-mt, copie auto du
-    //   convertisseur) ;
-    // - sentencepiece.bpe.model pour NLLB.
-    std::string tokenizer_path;
+    // Tokenizers SentencePiece copiés à côté de model.bin :
+    // - Marian (opus-mt) : source.spm (encodage) + target.spm (décodage) ;
+    // - NLLB : sentencepiece.bpe.model (partagé).
+    std::string source_path, target_path;
     for (const char* name : {"source.spm", "sentencepiece.bpe.model"}) {
       const std::string candidate = model_dir_str + "/" + name;
       if (file_exists(candidate)) {
-        tokenizer_path = candidate;
+        source_path = candidate;
         break;
       }
     }
-    if (tokenizer_path.empty()) {
+    if (source_path.empty()) {
       throw std::runtime_error(
           "tokenizer introuvable (source.spm ou sentencepiece.bpe.model) "
           "dans " + model_dir_str);
     }
-    g_tokenizer =
-        std::make_unique<ctranslate2::SentencePiece>(tokenizer_path);
+    const std::string target_candidate = model_dir_str + "/target.spm";
+    target_path =
+        file_exists(target_candidate) ? target_candidate : source_path;
+    g_sp_source = std::make_unique<ctranslate2::SentencePiece>(source_path);
+    g_sp_target = std::make_unique<ctranslate2::SentencePiece>(target_path);
 
     g_ready = true;
   } catch (const std::exception& e) {
     g_translator.reset();
-    g_tokenizer.reset();
+    g_sp_source.reset();
+    g_sp_target.reset();
     g_ready = false;
     __android_log_print(ANDROID_LOG_ERROR, "youssira_ct2",
                         "initialize failed: %s", e.what());
@@ -101,11 +105,13 @@ Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeTranslate(
   const std::string input = to_string(env, text);
 
   std::lock_guard<std::mutex> lock(g_mutex);
-  if (!g_ready || !g_translator || !g_tokenizer) return nullptr;
+  if (!g_ready || !g_translator || !g_sp_source || !g_sp_target) {
+    return nullptr;
+  }
 
   try {
     std::vector<std::string> source_tokens;
-    g_tokenizer->encode(input, source_tokens);
+    g_sp_source->encode(input, source_tokens);
     source_tokens.push_back("</s>");  // EOS attendu par Marian
 
     ctranslate2::TranslationOptions options;
@@ -117,7 +123,7 @@ Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeTranslate(
     if (results.empty()) return nullptr;
 
     std::string output;
-    g_tokenizer->decode(results[0].output(), output);
+    g_sp_target->decode(results[0].output(), output);
     return env->NewStringUTF(output.c_str());
   } catch (const std::exception& e) {
     __android_log_print(ANDROID_LOG_ERROR, "youssira_ct2",
@@ -130,7 +136,8 @@ JNIEXPORT void JNICALL
 Java_com_radjtech_youssira_1reader_NativeTranslationPlugin_nativeShutdown(
     JNIEnv* /*env*/, jclass /*clazz*/) {
   std::lock_guard<std::mutex> lock(g_mutex);
-  g_tokenizer.reset();
+  g_sp_source.reset();
+  g_sp_target.reset();
   g_translator.reset();
   g_ready = false;
 }
