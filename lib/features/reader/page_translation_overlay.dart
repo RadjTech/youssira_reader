@@ -73,6 +73,16 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
 
+      // Police : ~85 % de la taille apparente de l'original pour la
+      // lisibilité, mais JAMAIS plus grande que l'original (sinon les
+      // lignes débordent et chevauchent la suite du document). Plancher
+      // 7 px, lui aussi plafonné à l'original.
+      final originalSize = block.fontSizeHint * scale;
+      final fontSize = math.min(
+        originalSize,
+        math.max(originalSize * 0.85, math.min(7.0, originalSize)),
+      );
+
       overlays.add(
         Positioned(
           left: left,
@@ -85,7 +95,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
           child: _TranslationOverlayBox(
             original: block.text,
             translated: progress.translatedText!,
-            fontSize: math.max(block.fontSizeHint * scale * 0.8, 9.0),
+            fontSize: fontSize,
             padding: 2 * scale,
             opacity: controller.settings.overlayOpacity,
             textColor: block.textColor,
