@@ -139,9 +139,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ),
         body: Consumer<ReaderController>(
           builder: (context, controller, _) {
+            Widget main;
             // Mode lecture : document retypographié comme un ebook.
             if (controller.settings.mode == ReadingMode.reflow) {
-              return PdfDocumentViewBuilder.file(
+              main = PdfDocumentViewBuilder.file(
                 widget.path,
                 builder: (context, document) {
                   if (document == null) {
@@ -151,8 +152,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   return ReflowReaderView(document: document);
                 },
               );
+            } else {
+              main = _buildViewer();
             }
-            return _buildViewer();
+            return Stack(
+              children: [
+                main,
+                if (controller.docRunning)
+                  _DocProgressBanner(controller: controller),
+              ],
+            );
           },
         ),
       ),
@@ -187,6 +196,71 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bannière de progression « Traduire tout le document » : phase d'analyse
+/// puis pourcentage et compteur de blocs, avec bouton d'annulation.
+class _DocProgressBanner extends StatelessWidget {
+  const _DocProgressBanner({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final analyzing = controller.docAnalyzing;
+    final progress = controller.docProgress;
+    return Positioned(
+      left: 8,
+      right: 8,
+      bottom: 8,
+      child: Card(
+        elevation: 6,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      analyzing
+                          ? 'Analyse du document…'
+                          : 'Traduction du document…',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Annuler',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close),
+                    onPressed: controller.cancelDocumentTranslation,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: analyzing ? null : progress),
+              if (!analyzing) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '${(progress * 100).toStringAsFixed(0)} % — '
+                  '${controller.docDoneBlocks} / '
+                  '${controller.docTotalBlocks} blocs',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
           ),
         ),
       ),

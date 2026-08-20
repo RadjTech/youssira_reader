@@ -5,6 +5,7 @@ import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
 import '../../core/services/cache/translation_cache.dart';
 import '../../core/services/model_paths.dart';
+import 'language_models_screen.dart';
 
 /// Réglages : langues, moteur de traduction, opacité de l'overlay, cache.
 class SettingsScreen extends StatefulWidget {
@@ -125,6 +126,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _settings.targetBcp,
             onChanged: (value) =>
                 setState(() => _settings = _settings.copyWith(targetBcp: value)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.language),
+            title: const Text('Modèles de langue'),
+            subtitle: const Text(
+              'Installer / supprimer les modèles selon vos besoins de langues.',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LanguageModelsScreen()),
+            ),
           ),
           const Divider(height: 32),
           _sectionHeader('Moteur de traduction'),

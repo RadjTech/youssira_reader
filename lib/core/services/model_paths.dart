@@ -40,6 +40,41 @@ class ModelPaths {
     return hasModelBin && tokenizer != null;
   }
 
+  /// Liste les modèles CTranslate2 convertis présents sur le disque.
+  static Future<List<({String from, String to, String path, int sizeBytes})>>
+      listCt2Models() async {
+    final base = await getApplicationSupportDirectory();
+    final modelsDir = Directory(p.join(base.path, 'models'));
+    final out = <({String from, String to, String path, int sizeBytes})>[];
+    if (!await modelsDir.exists()) return out;
+    final re = RegExp(r'^opus-mt-([a-z]{2,3})-([a-z]{2,3})-ct2$');
+    await for (final entity in modelsDir.list()) {
+      if (entity is! Directory) continue;
+      final m = re.firstMatch(p.basename(entity.path));
+      if (m == null) continue;
+      out.add((
+        from: m.group(1)!,
+        to: m.group(2)!,
+        path: entity.path,
+        sizeBytes: await directorySizeBytes(entity.path),
+      ));
+    }
+    return out;
+  }
+
+  /// Taille totale (octets) d'une arborescence.
+  static Future<int> directorySizeBytes(String path) async {
+    var total = 0;
+    await for (final entity in Directory(path).list(recursive: true)) {
+      if (entity is File) total += await entity.length();
+    }
+    return total;
+  }
+
+  /// Supprime récursivement un dossier (désinstallation d'un modèle).
+  static Future<void> deleteDirectory(String path) =>
+      Directory(path).delete(recursive: true);
+
   /// Copie récursive [from] → [to] (import du modèle depuis un dossier
   /// choisi par l'utilisateur, ex. Download/).
   static Future<void> copyDirectory(String from, String to) async {

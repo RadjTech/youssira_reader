@@ -47,6 +47,13 @@ class ReaderController extends ChangeNotifier {
   bool _preparing = false; // téléchargement modèles / préparation moteur
   bool _busy = false; // opération de traduction en cours
 
+  // Progression « traduire tout le document ».
+  bool _docRunning = false;
+  bool _docAnalyzing = false;
+  bool _docCancel = false;
+  int _docTotalBlocks = 0;
+  int _docDoneBlocks = 0;
+
   final Map<int, List<TextBlock>> _blocksByPage = {};
   final Set<int> _extractingPages = {};
   final Map<String, BlockProgress> _progress = {}; // clé : id de bloc
@@ -66,6 +73,26 @@ class ReaderController extends ChangeNotifier {
 
   /// true pendant toute opération de traduction (page ou document).
   bool get busy => _busy;
+
+  /// true pendant « traduire tout le document » (analyse + traduction).
+  bool get docRunning => _docRunning;
+
+  /// true pendant la phase d'analyse (extraction des blocs de toutes les
+  /// pages) qui précède la traduction du document entier.
+  bool get docAnalyzing => _docAnalyzing;
+
+  /// Progression 0..1 de la traduction du document entier.
+  double get docProgress => _docTotalBlocks <= 0
+      ? 0.0
+      : (_docDoneBlocks / _docTotalBlocks).clamp(0.0, 1.0);
+
+  int get docDoneBlocks => _docDoneBlocks;
+  int get docTotalBlocks => _docTotalBlocks;
+
+  /// Demande l'arrêt de la traduction du document entier.
+  void cancelDocumentTranslation() {
+    _docCancel = true;
+  }
 
   /// true si des blocs de la page sont en cours de traduction : l'UI
   /// affiche « traduction en cours… » (les calques arrivent au fil de l'eau).
@@ -194,7 +221,11 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
-  Future<void> _translatePagePrepared(int pageNumber) async {
+  Future<void> _translatePagePrepared(
+    int pageNumber, {
+    void Function()? onBlockResolved,
+    bool Function()? shouldStop,
+  }) async {
     final pair = effectivePair;
     final blocks = blocksForPage(pageNumber);
     if (blocks.isEmpty) {
@@ -204,6 +235,7 @@ class ReaderController extends ChangeNotifier {
     }
 
     for (final block in blocks) {
+      if (shouldStop != null && shouldStop()) break;
       final current = _progress[block.id];
       if (current?.state == BlockState.done ||
           current?.state == BlockState.skipped) {
@@ -215,6 +247,7 @@ class ReaderController extends ChangeNotifier {
       if (CodeDetector.looksLikeCode(block.text) ||
           TextProtector.shouldSkip(block.text)) {
         _progress[block.id] = const BlockProgress(state: BlockState.skipped);
+        onBlockResolved?.call();
         notifyListeners();
         continue;
       }
@@ -237,6 +270,7 @@ class ReaderController extends ChangeNotifier {
       } catch (e) {
         _progress[block.id] = BlockProgress(state: BlockState.error, error: '$e');
       }
+      onBlockResolved?.call();
       notifyListeners();
     }
 
@@ -244,18 +278,52 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Traduit l'intégralité du document, page par page.
+  /// Traduit l'intégralité du document, page par page, avec progression :
+  /// 1) analyse (extraction des blocs de toutes les pages, comptage) ;
+  /// 2) traduction bloc par bloc ([docProgress] monte à chaque bloc résolu).
   Future<void> translateWholeDocument() async {
     if (_busy) return;
     _busy = true;
+    _docRunning = true;
+    _docAnalyzing = true;
+    _docCancel = false;
+    _docTotalBlocks = 0;
+    _docDoneBlocks = 0;
     notifyListeners();
     try {
       await _withPreparing(() => _prepareTranslation());
+      if (_docCancel) return;
+
       for (var page = 1; page <= _pageCount; page++) {
+        if (_docCancel) return;
         await ensureBlocks(page);
-        await _translatePagePrepared(page);
+      }
+      for (var page = 1; page <= _pageCount; page++) {
+        for (final block in blocksForPage(page)) {
+          _docTotalBlocks++;
+          final state = _progress[block.id]?.state;
+          if (state == BlockState.done || state == BlockState.skipped) {
+            _docDoneBlocks++;
+          }
+        }
+      }
+      _docAnalyzing = false;
+      notifyListeners();
+
+      for (var page = 1; page <= _pageCount; page++) {
+        if (_docCancel) break;
+        await _translatePagePrepared(
+          page,
+          onBlockResolved: () {
+            _docDoneBlocks++;
+            notifyListeners();
+          },
+          shouldStop: () => _docCancel,
+        );
       }
     } finally {
+      _docRunning = false;
+      _docAnalyzing = false;
       _busy = false;
       notifyListeners();
     }
