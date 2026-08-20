@@ -11,6 +11,14 @@ enum TranslationEngineKind {
   ct2Quality,
 }
 
+extension TranslationEngineKindId on TranslationEngineKind {
+  /// Identifiant stable du moteur (clé de registre et de cache).
+  String get id => switch (this) {
+        TranslationEngineKind.mlkitLight => 'mlkit-light',
+        TranslationEngineKind.ct2Quality => 'ct2-quality',
+      };
+}
+
 /// Mode de lecture de la page.
 enum ReadingMode {
   /// PDF original seul.
@@ -27,7 +35,7 @@ class ReaderSettings {
     this.targetBcp = 'en',
     this.engine = TranslationEngineKind.mlkitLight,
     this.mode = ReadingMode.original,
-    this.overlayOpacity = 0.95,
+    this.overlayOpacity = 1.0,
   });
 
   /// Langue source (code BCP-47 court, ex. 'fr').
@@ -44,10 +52,7 @@ class ReaderSettings {
   final double overlayOpacity;
 
   /// Identifiant du moteur, utilisé comme clé de cache et par TranslationService.
-  String get engineId => switch (engine) {
-        TranslationEngineKind.mlkitLight => 'mlkit-light',
-        TranslationEngineKind.ct2Quality => 'ct2-quality',
-      };
+  String get engineId => engine.id;
 
   ReaderSettings copyWith({
     String? sourceBcp,
@@ -80,7 +85,7 @@ class ReaderSettings {
       engine: TranslationEngineKind
           .values[json['engine'] as int? ?? TranslationEngineKind.mlkitLight.index],
       mode: ReadingMode.values[json['mode'] as int? ?? ReadingMode.original.index],
-      overlayOpacity: (json['overlayOpacity'] as num?)?.toDouble() ?? 0.95,
+      overlayOpacity: (json['overlayOpacity'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }

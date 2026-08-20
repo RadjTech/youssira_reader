@@ -16,6 +16,9 @@ dependencies:
   # --- Traduction on-device, mode léger (ML Kit Translation) ---
   google_mlkit_translation: ^0.15.1
 
+  # --- Détection automatique de la langue du document ---
+  google_mlkit_language_id: ^0.15.1
+
   # --- OCR on-device pour PDF scannés (ML Kit Text Recognition v2) ---
   google_mlkit_text_recognition: ^0.17.1
 

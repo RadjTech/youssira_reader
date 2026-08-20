@@ -20,41 +20,46 @@ class TranslationResult {
 
 /// Orchestre la traduction d'un bloc : cache → moteur → cache.
 ///
-/// C'est le point d'entrée unique de la couche UI pour traduire ; il choisit
-/// le moteur selon [ReaderSettings.engineId] et consulte systématiquement le
-/// cache SQLite avant toute inférence.
+/// Les langues sont passées explicitement : c'est le [ReaderController] qui
+/// décide de la paire effective (détection automatique de la langue du
+/// document, correction de direction si besoin).
 class TranslationService {
   TranslationService({required Map<String, TranslationEngine> engines})
       : _engines = engines;
 
   final Map<String, TranslationEngine> _engines;
 
-  TranslationEngine engineFor(String engineId) {
-    final engine = _engines[engineId];
+  TranslationEngine engineFor(TranslationEngineKind kind) {
+    final engine = _engines[kind.id];
     if (engine == null) {
-      throw ArgumentError('Moteur de traduction inconnu : "$engineId"');
+      throw ArgumentError('Moteur de traduction inconnu : "${kind.id}"');
     }
     return engine;
   }
 
   /// Prépare le moteur pour la paire de langues demandée (téléchargement des
   /// modèles si nécessaire). Lève une exception en cas d'échec.
-  Future<void> prepareEngine(ReaderSettings settings) async {
-    await engineFor(settings.engineId)
-        .ensureReady(fromBcp: settings.sourceBcp, toBcp: settings.targetBcp);
+  Future<void> prepareEngine(
+    TranslationEngineKind kind, {
+    required String fromBcp,
+    required String toBcp,
+  }) {
+    return engineFor(kind).ensureReady(fromBcp: fromBcp, toBcp: toBcp);
   }
 
   /// Traduit un bloc, en passant d'abord par le cache.
   Future<TranslationResult> translateBlock(
     TextBlock block, {
-    required ReaderSettings settings,
+    required TranslationEngineKind engine,
+    required String fromBcp,
+    required String toBcp,
   }) async {
-    final engine = engineFor(settings.engineId);
+    final impl = engineFor(engine);
     final key = TranslationCache.keyFor(
       text: block.text,
-      fromBcp: settings.sourceBcp,
-      toBcp: settings.targetBcp,
-      engineId: engine.id,
+      fromBcp: fromBcp,
+      toBcp: toBcp,
+      engineId: impl.id,
     );
 
     final stopwatch = Stopwatch()..start();
@@ -69,19 +74,16 @@ class TranslationService {
       );
     }
 
-    final translated = await engine.translate(
-      block.text,
-      fromBcp: settings.sourceBcp,
-      toBcp: settings.targetBcp,
-    );
+    final translated =
+        await impl.translate(block.text, fromBcp: fromBcp, toBcp: toBcp);
 
     await TranslationCache.instance.put(
       key: key,
       sourceText: block.text,
       translatedText: translated,
-      fromBcp: settings.sourceBcp,
-      toBcp: settings.targetBcp,
-      engineId: engine.id,
+      fromBcp: fromBcp,
+      toBcp: toBcp,
+      engineId: impl.id,
     );
 
     return TranslationResult(

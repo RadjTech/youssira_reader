@@ -17,10 +17,13 @@ Une app mobile Flutter qui lit des PDF et traduit le texte directement par-dessu
 #### **Features clés**
 - **100% On-Device** : aucune donnée ne quitte le téléphone
 - **Mise en page préservée** : la traduction se superpose à l'emplacement exact du texte
+- **Zoom naturel** : les calques vivent dans le viewer pdfrx et suivent pinch-zoom / pan
+- **Détection auto de la langue** : la langue du document est détectée (ML Kit Language ID) ; mauvaise direction corrigée automatiquement
 - **APK léger** : les modèles se téléchargent à la demande (Play Asset Delivery), l'APK reste < 30 Mo
 - **Deux modes de traduction** : mode léger (ML Kit, ~30 Mo/paire de langues) et mode qualité (réseau neuronal int8)
 - **Rapide** : < 2 s par page A4 en mode qualité sur un smartphone milieu de gamme récent
 - **Support PDF natif + scanné** : extraction texte pdfium + OCR ML Kit
+- **Indicateurs de tâche** : chargement du document et téléchargement des modèles signalés à l'écran
 
 ---
 

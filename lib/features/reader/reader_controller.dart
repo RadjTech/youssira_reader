@@ -3,6 +3,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/models/reader_settings.dart';
 import '../../core/models/text_block.dart';
+import '../../core/services/language_detector.dart';
 import '../../core/services/pdf_block_extractor.dart';
 import '../../core/services/translation_service.dart';
 
@@ -25,8 +26,8 @@ class BlockProgress {
 
 /// État de lecture : document, blocs par page, traductions, réglages.
 ///
-/// Un contrôleur par document ouvert. La traduction est paresseuse : on
-/// n'extrait et ne traduit que les pages demandées.
+/// Un contrôleur par document ouvert. Tout est paresseux : on n'extrait et ne
+/// traduit que les pages demandées.
 class ReaderController extends ChangeNotifier {
   ReaderController({
     required TranslationService translationService,
@@ -36,9 +37,12 @@ class ReaderController extends ChangeNotifier {
 
   final TranslationService _translationService;
   final PdfBlockExtractor _extractor = PdfBlockExtractor();
+  final LanguageDetector _languageDetector = LanguageDetector();
 
   PdfDocument? _document;
   ReaderSettings _settings;
+  String? _detectedLanguage;
+  bool _preparing = false;
 
   final Map<int, List<TextBlock>> _blocksByPage = {};
   final Set<int> _extractingPages = {};
@@ -46,8 +50,34 @@ class ReaderController extends ChangeNotifier {
   final Set<int> _translatedPages = {};
   int _pageCount = 0;
 
+  /// File d'extraction : les appels PDFium (FFI synchrones) sont sérialisés
+  /// pour ne pas bloquer l'isolate UI plusieurs fois en parallèle (jank).
+  Future<void> _extractionQueue = Future.value();
+
   ReaderSettings get settings => _settings;
   int get pageCount => _pageCount;
+
+  /// true pendant le téléchargement des modèles / la préparation du moteur :
+  /// l'UI affiche un indicateur pour ne pas faire croire à un freeze.
+  bool get preparing => _preparing;
+
+  String? get detectedLanguage => _detectedLanguage;
+
+  /// Paire de langues réellement utilisée.
+  ///
+  /// La langue du document est détectée automatiquement ; si l'utilisateur
+  /// s'est trompé de direction (ex. document FR avec la paire EN→FR), on
+  /// traduit FR→EN au lieu de produire du charabia.
+  ({String from, String to}) get effectivePair {
+    final detected = _detectedLanguage;
+    if (detected == null) {
+      return (from: _settings.sourceBcp, to: _settings.targetBcp);
+    }
+    if (detected == _settings.targetBcp) {
+      return (from: detected, to: _settings.sourceBcp);
+    }
+    return (from: detected, to: _settings.targetBcp);
+  }
 
   List<TextBlock> blocksForPage(int pageNumber) =>
       _blocksByPage[pageNumber] ?? const [];
@@ -78,12 +108,7 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// File d'extraction : les appels PDFium sont sérialisés pour éviter que
-  /// plusieurs pages ne bloquent l'isolate UI en même temps (jank à
-  /// l'ouverture et au scroll).
-  Future<void> _extractionQueue = Future.value();
-
-  /// Extrait les blocs de texte d'une page (idempotent, paresseux).
+  /// Extrait les blocs de texte d'une page (idempotent, paresseux, sérialisé).
   Future<void> ensureBlocks(int pageNumber) {
     final document = _document;
     if (document == null) return Future.value();
@@ -111,15 +136,38 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
-  /// Traduit tous les blocs d'une page, séquentiellement, en notifiant la
-  /// progression bloc par bloc (l'overlay se remplit au fil de l'eau).
-  /// Lève une exception si la préparation du moteur échoue.
+  /// Détection de langue + préparation du moteur (téléchargement modèles).
+  Future<void> _prepareTranslation() async {
+    if (_detectedLanguage == null) {
+      await ensureBlocks(1);
+      final sample = blocksForPage(1).take(3).map((b) => b.text).join(' ');
+      _detectedLanguage = await _languageDetector.detect(sample);
+    }
+    final pair = effectivePair;
+    await _translationService.prepareEngine(
+      _settings.engine,
+      fromBcp: pair.from,
+      toBcp: pair.to,
+    );
+  }
+
+  /// Traduit une page. Lève une exception si la préparation échoue (l'UI
+  /// l'affiche en SnackBar) ; [preparing] devient true pendant ce temps.
   Future<void> translatePage(int pageNumber) async {
-    await _translationService.prepareEngine(_settings);
-    await _translatePagePrepared(pageNumber);
+    if (_preparing) return;
+    _preparing = true;
+    notifyListeners();
+    try {
+      await _prepareTranslation();
+      await _translatePagePrepared(pageNumber);
+    } finally {
+      _preparing = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _translatePagePrepared(int pageNumber) async {
+    final pair = effectivePair;
     final blocks = blocksForPage(pageNumber);
     if (blocks.isEmpty) {
       _translatedPages.add(pageNumber);
@@ -137,7 +185,9 @@ class ReaderController extends ChangeNotifier {
       try {
         final result = await _translationService.translateBlock(
           block,
-          settings: _settings,
+          engine: _settings.engine,
+          fromBcp: pair.from,
+          toBcp: pair.to,
         );
         _progress[block.id] = BlockProgress(
           state: BlockState.done,
@@ -156,15 +206,24 @@ class ReaderController extends ChangeNotifier {
 
   /// Traduit l'intégralité du document, page par page.
   Future<void> translateWholeDocument() async {
-    await _translationService.prepareEngine(_settings);
-    for (var page = 1; page <= _pageCount; page++) {
-      await ensureBlocks(page);
-      await _translatePagePrepared(page);
+    if (_preparing) return;
+    _preparing = true;
+    notifyListeners();
+    try {
+      await _prepareTranslation();
+      for (var page = 1; page <= _pageCount; page++) {
+        await ensureBlocks(page);
+        await _translatePagePrepared(page);
+      }
+    } finally {
+      _preparing = false;
+      notifyListeners();
     }
   }
 
   @override
   void dispose() {
+    _languageDetector.dispose();
     _document = null;
     super.dispose();
   }

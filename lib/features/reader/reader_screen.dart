@@ -4,10 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
 import '../settings/settings_screen.dart';
+import 'page_translation_overlay.dart';
 import 'reader_controller.dart';
-import 'translation_page_view.dart';
 
-/// Écran de lecture : liste verticale des pages + calques de traduction.
+/// Écran de lecture : viewer PDF natif (zoom/pinch/pan intégrés) + calques de
+/// traduction superposés via `pageOverlaysBuilder`, donc solidaires du zoom.
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({
     super.key,
@@ -71,12 +72,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
               builder: (context, controller, _) {
                 final isTranslated =
                     controller.settings.mode == ReadingMode.translated;
+                final pair = controller.effectivePair;
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${controller.settings.sourceBcp.toUpperCase()} → '
-                      '${controller.settings.targetBcp.toUpperCase()}',
+                      '${pair.from.toUpperCase()} → ${pair.to.toUpperCase()}',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     IconButton(
@@ -96,8 +97,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     ),
                     IconButton(
                       tooltip: 'Traduire tout le document',
-                      icon: const Icon(Icons.done_all),
-                      onPressed: () => _translateAll(controller),
+                      icon: controller.preparing
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.done_all),
+                      onPressed: controller.preparing
+                          ? null
+                          : () => _translateAll(controller),
                     ),
                     IconButton(
                       tooltip: 'Réglages',
@@ -110,28 +119,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ],
         ),
-        body: PdfDocumentViewBuilder.file(
+        body: PdfViewer.file(
           widget.path,
-          builder: (context, document) {
-            if (document == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!_attached) {
-              _attached = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                widget.controller.attachDocument(document);
-              });
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: document.pages.length,
-              itemBuilder: (context, index) => TranslationPageView(
-                key: ValueKey('page-${index + 1}'),
-                document: document,
-                pageNumber: index + 1,
+          params: PdfViewerParams(
+            // Les calques de traduction vivent DANS le viewer : ils suivent
+            // naturellement le zoom et le pan.
+            pageOverlaysBuilder: (context, pageRect, page) {
+              if (!_attached) {
+                _attached = true;
+                final document = page.document;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widget.controller.attachDocument(document);
+                });
+              }
+              return [
+                PageTranslationOverlay(page: page, pageRect: pageRect),
+              ];
+            },
+            // Signal visuel pendant le chargement initial du document.
+            loadingBannerBuilder: (context, size) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('Ouverture du document…'),
+                    ],
+                  ),
+                ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
