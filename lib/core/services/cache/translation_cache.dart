@@ -34,7 +34,7 @@ class TranslationCacheDb extends _$TranslationCacheDb {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onUpgrade: (migrator, from) async {
+        onUpgrade: (migrator, from, to) async {
           if (from < 2) {
             // v2 : nouvelles règles de « traduction intelligente » (code
             // laissé intact, points de conduite protégés, couleurs
