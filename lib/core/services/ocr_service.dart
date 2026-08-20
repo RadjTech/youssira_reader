@@ -9,12 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../models/text_block.dart';
+import 'style_extractor.dart';
 
 /// OCR on-device (ML Kit Text Recognition v2) pour les pages sans texte natif
 /// (PDF scannés, photos de documents).
 ///
 /// Pipeline : rendu bitmap de la page (~150 dpi) → reconnaissance ML Kit →
-/// conversion des bounding boxes pixels vers les coordonnées PDF (points).
+/// conversion des bounding boxes pixels vers les coordonnées PDF (points) →
+/// analyse de style sur le même rendu.
 class OcrService {
   OcrService({TextRecognitionScript script = TextRecognitionScript.latin})
       : _recognizer = TextRecognizer(script: script);
@@ -28,7 +30,7 @@ class OcrService {
     final width = (page.width * scale).round();
     final height = (page.height * scale).round();
 
-    // 1. Rendu de la page en image.
+    // 1. Rendu de la page en image (sert à l'OCR ET à l'analyse de style).
     final rendered = await page.render(width: width, height: height);
     if (rendered == null) return const [];
     final image = rendered.createImageNF();
@@ -39,39 +41,49 @@ class OcrService {
     final file = File('${tmp.path}/youssira_ocr_p${page.pageNumber}.png');
     await file.writeAsBytes(img.encodePng(image), flush: true);
 
-    final blocks = <TextBlock>[];
+    List<TextBlock> blocks;
     try {
       final inputImage = InputImage.fromFilePath(file.path);
       final recognized = await _recognizer.processImage(inputImage);
 
       // 3. Conversion pixels (origine haut-gauche) → points PDF (bas-gauche).
-      for (final textBlock in recognized.blocks) {
-        for (final line in textBlock.lines) {
-          final text = line.text.trim();
-          final px = line.boundingBox;
-          if (text.isEmpty) continue;
-
-          blocks.add(
-            TextBlock(
-              id: TextBlock.computeId(text),
-              pageNumber: page.pageNumber,
-              text: text,
-              left: px.left / scale,
-              right: px.right / scale,
-              top: page.height - px.top / scale,
-              bottom: page.height - px.bottom / scale,
-              source: BlockSource.ocr,
-              fontSizeHint: px.height / scale,
-            ),
-          );
-        }
-      }
+      blocks = [
+        for (final textBlock in recognized.blocks)
+          for (final line in textBlock.lines)
+            if (line.text.trim().isNotEmpty)
+              TextBlock(
+                id: TextBlock.computeId(line.text),
+                pageNumber: page.pageNumber,
+                text: line.text.trim(),
+                left: line.boundingBox.left / scale,
+                right: line.boundingBox.right / scale,
+                top: page.height - line.boundingBox.top / scale,
+                bottom: page.height - line.boundingBox.bottom / scale,
+                source: BlockSource.ocr,
+                fontSizeHint: line.boundingBox.height / scale,
+              ),
+      ];
     } finally {
       if (await file.exists()) {
         await file.delete();
       }
     }
-    return blocks;
+
+    // 4. Styles échantillonnés sur le même rendu.
+    final styles = StyleExtractor.analyze(
+      image,
+      blocks,
+      pageWidthPt: page.width,
+      pageHeightPt: page.height,
+    );
+    return [
+      for (var i = 0; i < blocks.length; i++)
+        blocks[i].copyWithStyle(
+          textColor: styles[i].textColor,
+          backgroundColor: styles[i].backgroundColor,
+          bold: styles[i].bold,
+        ),
+    ];
   }
 
   Future<void> dispose() => _recognizer.close();

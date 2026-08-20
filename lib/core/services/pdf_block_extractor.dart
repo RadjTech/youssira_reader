@@ -2,15 +2,17 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../models/text_block.dart';
 import 'ocr_service.dart';
+import 'style_extractor.dart';
 
-/// Extrait les blocs de texte d'une page PDF avec leurs coordonnées.
+/// Extrait les blocs de texte d'une page PDF avec leurs coordonnées ET leur
+/// style visuel (couleurs, graisse).
 ///
 /// Pipeline :
-/// 1. `loadStructuredText()` (PDFium via pdfrx) → fragments de texte avec
-///    bounding boxes ;
-/// 2. regroupement des fragments en lignes (même ordonnée) ;
-/// 3. si la page ne contient aucun texte natif (page scannée), fallback OCR
-///    via ML Kit Text Recognition.
+/// 1. `loadStructuredText()` (PDFium via pdfrx) → fragments avec bounding
+///    boxes ;
+/// 2. regroupement des fragments en lignes ;
+/// 3. analyse bitmap ([StyleExtractor]) pour les couleurs / la graisse ;
+/// 4. si la page ne contient aucun texte natif (page scannée), fallback OCR.
 class PdfBlockExtractor {
   PdfBlockExtractor({OcrService? ocrService}) : _ocr = ocrService ?? OcrService();
 
@@ -21,10 +23,32 @@ class PdfBlockExtractor {
     final pageText = await page.loadStructuredText();
 
     final blocks = _groupFragmentsIntoLines(pageText);
-    if (blocks.isNotEmpty) return blocks;
+    if (blocks.isEmpty) {
+      return _ocr.recognizePage(page);
+    }
+    return _withStyles(page, blocks);
+  }
 
-    // Aucun texte natif → probablement une page scannée : OCR.
-    return _ocr.recognizePage(page);
+  /// Échantillonne le style visuel de chaque bloc sur le rendu bitmap.
+  Future<List<TextBlock>> _withStyles(PdfPage page, List<TextBlock> blocks) async {
+    final image = await StyleExtractor.renderForAnalysis(page);
+    if (image == null) return blocks;
+
+    final styles = StyleExtractor.analyze(
+      image,
+      blocks,
+      pageWidthPt: page.width,
+      pageHeightPt: page.height,
+    );
+
+    return [
+      for (var i = 0; i < blocks.length; i++)
+        blocks[i].copyWithStyle(
+          textColor: styles[i].textColor,
+          backgroundColor: styles[i].backgroundColor,
+          bold: styles[i].bold,
+        ),
+    ];
   }
 
   /// Regroupe les fragments PDFium en lignes lisibles.

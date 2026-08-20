@@ -5,10 +5,12 @@ import '../../core/models/reader_settings.dart';
 import '../../core/models/text_block.dart';
 import '../../core/services/language_detector.dart';
 import '../../core/services/pdf_block_extractor.dart';
+import '../../core/services/translation/code_detector.dart';
+import '../../core/services/translation/text_protector.dart';
 import '../../core/services/translation_service.dart';
 
 /// État de traduction d'un bloc.
-enum BlockState { pending, translating, done, error }
+enum BlockState { pending, translating, done, error, skipped }
 
 class BlockProgress {
   const BlockProgress({
@@ -177,7 +179,19 @@ class ReaderController extends ChangeNotifier {
 
     for (final block in blocks) {
       final current = _progress[block.id];
-      if (current?.state == BlockState.done) continue;
+      if (current?.state == BlockState.done ||
+          current?.state == BlockState.skipped) {
+        continue;
+      }
+
+      // Traduction intelligente : le code source et les blocs composés
+      // uniquement de noms protégés (marques, technos, URLs…) restent intacts.
+      if (CodeDetector.looksLikeCode(block.text) ||
+          TextProtector.shouldSkip(block.text)) {
+        _progress[block.id] = const BlockProgress(state: BlockState.skipped);
+        notifyListeners();
+        continue;
+      }
 
       _progress[block.id] = const BlockProgress(state: BlockState.translating);
       notifyListeners();

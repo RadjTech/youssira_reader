@@ -87,6 +87,9 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             translated: progress.translatedText!,
             fontSize: math.max(block.fontSizeHint * scale * 0.8, 4),
             opacity: controller.settings.overlayOpacity,
+            textColor: block.textColor,
+            backgroundColor: block.backgroundColor,
+            bold: block.bold,
           ),
         ),
       );
@@ -134,27 +137,36 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   }
 }
 
-/// Le calque d'un bloc : fond opaque + texte traduit ajusté AU rectangle du
-/// bloc d'origine (FittedBox), sans jamais déborder. Tap = texte original.
+/// Le calque d'un bloc : fond = couleur de fond échantillonnée du bloc
+/// d'origine, texte = couleur du texte d'origine, graisse détectée. Le tout
+/// ajusté AU rectangle du bloc (FittedBox), sans jamais déborder.
+/// Tap = texte original.
 class _TranslationOverlayBox extends StatelessWidget {
   const _TranslationOverlayBox({
     required this.original,
     required this.translated,
     required this.fontSize,
     required this.opacity,
+    required this.textColor,
+    required this.backgroundColor,
+    required this.bold,
   });
 
   final String original;
   final String translated;
   final double fontSize;
   final double opacity;
+  final int textColor;
+  final int backgroundColor;
+  final bool bold;
 
   @override
   Widget build(BuildContext context) {
+    final bg = Color(backgroundColor);
     return GestureDetector(
       onTap: () => _showOriginal(context),
       child: Container(
-        color: Color.fromRGBO(255, 255, 255, opacity.clamp(0.0, 1.0)),
+        color: Color.fromRGBO(bg.red, bg.green, bg.blue, opacity.clamp(0.0, 1.0)),
         alignment: Alignment.centerLeft,
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -166,7 +178,8 @@ class _TranslationOverlayBox extends StatelessWidget {
             style: TextStyle(
               fontSize: fontSize,
               height: 1.1,
-              color: const Color(0xDE1A1A1A),
+              color: Color(textColor),
+              fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
             ),
           ),
         ),

@@ -1,6 +1,7 @@
 import '../models/reader_settings.dart';
 import '../models/text_block.dart';
 import 'cache/translation_cache.dart';
+import 'translation/text_protector.dart';
 import 'translation/translation_engine.dart';
 
 /// Résultat de la traduction d'un bloc.
@@ -18,7 +19,8 @@ class TranslationResult {
   final Duration elapsed;
 }
 
-/// Orchestre la traduction d'un bloc : cache → moteur → cache.
+/// Orchestre la traduction d'un bloc : protection des noms propres / URLs /
+/// versions → cache → moteur → cache.
 ///
 /// Les langues sont passées explicitement : c'est le [ReaderController] qui
 /// décide de la paire effective (détection automatique de la langue du
@@ -47,7 +49,9 @@ class TranslationService {
     return engineFor(kind).ensureReady(fromBcp: fromBcp, toBcp: toBcp);
   }
 
-  /// Traduit un bloc, en passant d'abord par le cache.
+  /// Traduit un bloc : les URLs, emails, versions et noms de marques /
+  /// technos / langages sont masqués avant l'inférence puis restaurés, pour
+  /// une traduction « intelligente » qui ne touche pas à ces éléments.
   Future<TranslationResult> translateBlock(
     TextBlock block, {
     required TranslationEngineKind engine,
@@ -74,8 +78,10 @@ class TranslationService {
       );
     }
 
-    final translated =
-        await impl.translate(block.text, fromBcp: fromBcp, toBcp: toBcp);
+    final masked = TextProtector.mask(block.text);
+    final rawTranslated =
+        await impl.translate(masked.masked, fromBcp: fromBcp, toBcp: toBcp);
+    final translated = TextProtector.restore(rawTranslated, masked);
 
     await TranslationCache.instance.put(
       key: key,
