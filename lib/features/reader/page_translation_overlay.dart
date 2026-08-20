@@ -72,20 +72,20 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       final left = block.left * scale;
       final top = (widget.page.height - block.top) * scale;
       final width = block.width * scale;
+      final height = block.height * scale;
 
+      // Le calque reste STRICTEMENT dans le rectangle du bloc d'origine :
+      // le document traduit garde exactement la silhouette de l'original.
       overlays.add(
         Positioned(
           left: left,
           top: top,
           width: width,
-          // Pas de hauteur fixée : le texte traduit s'enroule et la boîte
-          // grandit vers le bas si besoin (traductions plus longues que
-          // l'original) au lieu de rétrécir la police.
+          height: height,
           child: _TranslationOverlayBox(
             original: block.text,
             translated: progress.translatedText!,
-            fontSize: math.max(block.fontSizeHint * scale * 0.8, 9),
-            padding: 2 * scale,
+            fontSize: math.max(block.fontSizeHint * scale * 0.8, 4),
             opacity: controller.settings.overlayOpacity,
           ),
         ),
@@ -134,21 +134,19 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   }
 }
 
-/// Le calque d'un bloc : fond blanc opaque + texte traduit enroulé, ajusté au
-/// rectangle du bloc d'origine. Tap = afficher le texte original.
+/// Le calque d'un bloc : fond opaque + texte traduit ajusté AU rectangle du
+/// bloc d'origine (FittedBox), sans jamais déborder. Tap = texte original.
 class _TranslationOverlayBox extends StatelessWidget {
   const _TranslationOverlayBox({
     required this.original,
     required this.translated,
     required this.fontSize,
-    required this.padding,
     required this.opacity,
   });
 
   final String original;
   final String translated;
   final double fontSize;
-  final double padding;
   final double opacity;
 
   @override
@@ -157,13 +155,19 @@ class _TranslationOverlayBox extends StatelessWidget {
       onTap: () => _showOriginal(context),
       child: Container(
         color: Color.fromRGBO(255, 255, 255, opacity.clamp(0.0, 1.0)),
-        padding: EdgeInsets.symmetric(horizontal: padding),
-        child: Text(
-          translated,
-          style: TextStyle(
-            fontSize: fontSize,
-            height: 1.2,
-            color: const Color(0xDE1A1A1A),
+        alignment: Alignment.centerLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            translated,
+            maxLines: 6,
+            textAlign: TextAlign.left,
+            style: TextStyle(
+              fontSize: fontSize,
+              height: 1.1,
+              color: const Color(0xDE1A1A1A),
+            ),
           ),
         ),
       ),
