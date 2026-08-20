@@ -78,15 +78,27 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// File d'extraction : les appels PDFium sont sérialisés pour éviter que
+  /// plusieurs pages ne bloquent l'isolate UI en même temps (jank à
+  /// l'ouverture et au scroll).
+  Future<void> _extractionQueue = Future.value();
+
   /// Extrait les blocs de texte d'une page (idempotent, paresseux).
-  Future<void> ensureBlocks(int pageNumber) async {
+  Future<void> ensureBlocks(int pageNumber) {
     final document = _document;
-    if (document == null) return;
+    if (document == null) return Future.value();
     if (_blocksByPage.containsKey(pageNumber) ||
         _extractingPages.contains(pageNumber)) {
-      return;
+      return Future.value();
     }
     _extractingPages.add(pageNumber);
+    final task =
+        _extractionQueue.then((_) => _extract(document, pageNumber));
+    _extractionQueue = task;
+    return task;
+  }
+
+  Future<void> _extract(PdfDocument document, int pageNumber) async {
     try {
       final blocks = await _extractor.extractPage(document, pageNumber);
       _blocksByPage[pageNumber] = blocks;
