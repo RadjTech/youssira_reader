@@ -55,7 +55,7 @@ class DocxWriter {
         out.addFile(ArchiveFile(file.name, file.size, file.content));
       }
     }
-    return ZipEncoder().encode(out)!;
+    return ZipEncoder().encode(out);
   }
 
   /// Même parcours que le parseur : w:p du conteneur, puis paragraphes des
@@ -94,7 +94,9 @@ class DocxWriter {
     if (textNodes.isEmpty) return;
     var first = true;
     for (final t in textNodes) {
-      t.text = first ? translation : '';
+      // xml ≥ 6.5 : pas de setter text — on remplace l'enfant texte.
+      t.children.clear();
+      t.addChild(XmlText(first ? translation : ''));
       t.setAttribute('xml:space', 'preserve');
       first = false;
     }

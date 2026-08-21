@@ -166,8 +166,9 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
     try {
       await controller.translatePage(pageNumber);
     } on QuotaExceededException {
+      if (!mounted) return;
       final unlocked = await LimitDialog.show(context, 'pages');
-      if (unlocked && context.mounted) {
+      if (unlocked && mounted) {
         try {
           await controller.translatePage(pageNumber);
         } catch (e) {

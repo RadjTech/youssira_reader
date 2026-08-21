@@ -199,7 +199,7 @@ class IrDocument {
 
   void registerText(IrTextElement element, {bool translatable = true}) {
     _byId[element.id] = element;
-    if (translatable) translatable.add(element);
+    if (translatable) this.translatable.add(element);
   }
 
   IrTextElement? byId(String id) => _byId[id];

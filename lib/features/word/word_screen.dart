@@ -42,6 +42,7 @@ class _WordScreenState extends State<WordScreen> {
     try {
       await _controller.translateAll();
     } on QuotaExceededException {
+      if (!mounted) return;
       final unlocked = await LimitDialog.show(context, 'pages');
       if (unlocked && mounted) {
         try {
@@ -67,7 +68,7 @@ class _WordScreenState extends State<WordScreen> {
         builder: (context) => AlertDialog(
           title: const Text("Traduire d'abord ?"),
           content: const Text(
-            'Le document n'est pas encore traduit. Traduire avant '
+            "Le document n'est pas encore traduit. Traduire avant "
             "l'export ?",
           ),
           actions: [
@@ -91,6 +92,7 @@ class _WordScreenState extends State<WordScreen> {
       try {
         AppServices.instance.limits.tryConsumeExport();
       } on QuotaExceededException {
+        if (!mounted) return;
         final unlocked = await LimitDialog.show(context, 'exports');
         if (!unlocked) return;
       }

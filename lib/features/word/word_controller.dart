@@ -21,7 +21,7 @@ class WordController extends ChangeNotifier {
   final String fileName;
   final List<int> originalBytes;
 
-  ReaderSettings _settings;
+  final ReaderSettings _settings;
   ReaderSettings get settings => _settings;
 
   final LanguageDetector _detector = LanguageDetector();
@@ -127,8 +127,9 @@ class WordController extends ChangeNotifier {
     if (ir == null) return null;
     final bytes = await DocxWriter.writeTranslated(originalBytes, ir, pair.to);
 
-    final base = fileName.replaceAll(RegExp(r'\.docx$', ignoreCase: true), '');
-    final outPath = await FilePicker.platform.saveFile(
+    final base =
+        fileName.replaceAll(RegExp(r'\.docx$', caseSensitive: false), '');
+    final outPath = await FilePicker.saveFile(
       dialogTitle: 'Enregistrer le document traduit',
       fileName: '$base-traduit.docx',
       type: FileType.custom,

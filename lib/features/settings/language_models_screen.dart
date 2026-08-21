@@ -85,7 +85,7 @@ class _LanguageModelsScreenState extends State<LanguageModelsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Supprimer ce modèle ?'),
         content: const Text(
-          'Le modèle converti sera définitivement supprimé de l'appareil.',
+          "Le modèle converti sera définitivement supprimé de l'appareil.",
         ),
         actions: [
           TextButton(

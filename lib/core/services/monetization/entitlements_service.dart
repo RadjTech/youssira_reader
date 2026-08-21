@@ -52,22 +52,16 @@ class EntitlementsService extends ChangeNotifier {
   Future<void> _loadProducts() async {
     final response = await InAppPurchase.instance
         .queryProductDetails({monthlyId, lifetimeId});
-    _products = response.productList;
+    _products = response.productDetails;
   }
 
+  /// Restaure les achats : les achats possédés remontent via
+  /// [purchaseStream] (gérés par [_handlePurchase]).
   Future<void> _restore() async {
-    final past = await InAppPurchase.instance.queryPastPurchases();
-    var pro = false;
-    for (final p in past.pastPurchases) {
-      if (p.productID == lifetimeId || p.productID == monthlyId) pro = true;
-      if (p.pendingCompletePurchase) {
-        await InAppPurchase.instance.completePurchase(p);
-      }
-    }
-    if (pro != _pro) {
-      _pro = pro;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_kPro, pro);
+    try {
+      await InAppPurchase.instance.restorePurchases();
+    } catch (_) {
+      // Jamais bloquant.
     }
   }
 
@@ -93,7 +87,8 @@ class EntitlementsService extends ChangeNotifier {
     if (p == null) {
       throw StateError('Produit $productId indisponible dans le store.');
     }
-    await InAppPurchase.instance.buyNonConsumable(PurchaseParam(productDetails: p));
+    await InAppPurchase.instance
+        .buyNonConsumable(purchaseParam: PurchaseParam(productDetails: p));
   }
 
   Future<void> restore() async {

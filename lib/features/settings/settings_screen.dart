@@ -68,11 +68,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Importe le modèle CTranslate2 depuis un dossier choisi par
   /// l'utilisateur (SAF) vers le dossier privé de l'app.
   Future<void> _importModel() async {
+    final messenger = ScaffoldMessenger.of(context);
     final dirPath = await FilePicker.getDirectoryPath();
     if (dirPath == null) return;
 
     setState(() => _importing = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final target = await ModelPaths.ct2ModelDir(
         _settings.sourceBcp,

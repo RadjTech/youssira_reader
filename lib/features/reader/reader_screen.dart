@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
@@ -68,6 +70,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     try {
       await controller.translateWholeDocument();
     } on QuotaExceededException {
+      if (!mounted) return;
       final unlocked = await LimitDialog.show(context, 'pages');
       if (unlocked && mounted) {
         try {
@@ -132,6 +135,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
     if (imageBased == null) return;
+    if (!mounted) return;
 
     final allTranslated = [
       for (var i = 1; i <= controller.pageCount; i++)
@@ -160,6 +164,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
       if (go != true) return;
       await controller.translateWholeDocument();
+      if (!mounted) return;
     }
 
     // Quota gratuit d'exports (Pro = illimité) : dialogue pub/Pro si atteint.
@@ -167,6 +172,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       try {
         AppServices.instance.limits.tryConsumeExport();
       } on QuotaExceededException {
+        if (!mounted) return;
         final unlocked = await LimitDialog.show(context, 'exports');
         if (!unlocked) return;
       }
@@ -174,7 +180,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     final progress = ValueNotifier<double>(0);
     final label = ValueNotifier<String>('Export…');
-    showDialog<void>(
+    unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => ValueListenableBuilder<double>(
@@ -194,7 +200,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ),
       ),
-    );
+    ));
 
     try {
       final path = await PdfExportService.exportTranslatedPdf(

@@ -86,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Documents Word : IR + rendu stylé + export .docx traduit.
     if (path.toLowerCase().endsWith('.docx')) {
       final bytes = await file.readAsBytes();
+      if (!mounted) return;
       final segments = Uri.file(path).pathSegments;
       final name = segments.isNotEmpty ? segments.last : path;
       await Navigator.of(context).push(

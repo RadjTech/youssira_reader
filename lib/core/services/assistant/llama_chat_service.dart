@@ -41,7 +41,7 @@ class LlamaChatService {
     final modelPath = await ModelPaths.llmModelPath();
     if (!await File(modelPath).exists()) {
       throw StateError(
-        "Modèle LLM absent : téléchargez-le ou importez un GGUF "
+        'Modèle LLM absent : téléchargez-le ou importez un GGUF '
         "depuis l'écran Assistant.",
       );
     }

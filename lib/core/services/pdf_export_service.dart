@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
-import 'package:pdf/pdf.dart';
+// PdfDocument vient de pdfrx ; on masque celui du package pdf.
+import 'package:pdf/pdf.dart' hide PdfDocument;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -39,7 +40,7 @@ class PdfExportService {
         final format = PdfPageFormat(page.width, page.height);
         final blocks = controller.blocksForPage(n);
 
-        pw.Widget background = const pw.SizedBox();
+        pw.Widget background = pw.SizedBox();
         if (imageBased) {
           final rendered = await page.render(
             width: (page.width * 1.5).round(),
@@ -75,8 +76,8 @@ class PdfExportService {
       final base = sourcePath
           .split(Platform.pathSeparator)
           .last
-          .replaceAll(RegExp(r'\.pdf$', ignoreCase: true), '');
-      final outPath = await FilePicker.platform.saveFile(
+          .replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+      final outPath = await FilePicker.saveFile(
         dialogTitle: 'Enregistrer le PDF traduit',
         fileName: '$base-traduit.pdf',
         type: FileType.custom,
@@ -102,12 +103,12 @@ class PdfExportService {
     double pageHeight,
   ) {
     final progress = controller.progressFor(block.id);
-    final done = progress?.state == BlockState.done &&
-        progress!.translatedText != null;
+    final translated = progress?.translatedText;
+    final done = progress?.state == BlockState.done && translated != null;
 
     String? text;
     if (done) {
-      text = progress!.translatedText;
+      text = translated;
     } else if (!imageBased) {
       // Mode léger : le document doit rester lisible partout — les blocs
       // ignorés (code, marques…) et non traduits gardent l'original.
@@ -122,17 +123,20 @@ class PdfExportService {
       pw.Positioned(
         left: block.left,
         top: pageHeight - block.top,
-        width: block.width,
-        child: pw.Container(
-          // En mode fidèle, le patch recouvre le texte original de l'image.
-          color: done && imageBased ? patch : null,
-          child: pw.Text(
-            text,
-            textAlign: pw.TextAlign.left,
-            style: pw.TextStyle(
-              font: block.bold ? pw.Font.helveticaBold : pw.Font.helvetica,
-              fontSize: block.fontSizeHint,
-              color: color,
+        child: pw.SizedBox(
+          width: block.width,
+          child: pw.Container(
+            // En mode fidèle, le patch recouvre le texte original de l'image.
+            color: done && imageBased ? patch : null,
+            child: pw.Text(
+              text,
+              textAlign: pw.TextAlign.left,
+              style: pw.TextStyle(
+                font:
+                    block.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(),
+                fontSize: block.fontSizeHint,
+                color: color,
+              ),
             ),
           ),
         ),

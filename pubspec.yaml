@@ -26,7 +26,8 @@ dependencies:
   google_mlkit_text_recognition: ^0.17.1
 
   # --- Monétisation : AdMob (interstitiel + récompensé, consentement UMP) ---
-  google_mobile_ads: ^9.1.0
+  # Série 5.x : l'API UMP (UserMessagingPlatform) y est exportée.
+  google_mobile_ads: ^5.1.0
 
   # --- Achats intégrés Google Play (version Pro) ---
   in_app_purchase: ^3.3.0

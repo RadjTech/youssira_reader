@@ -11,7 +11,7 @@ class LimitDialog {
   static const _labels = {
     'pages': ('pages traduites', 'pages'),
     'exports': ('exports de PDF traduit', 'exports'),
-    'questions': ("questions à l'assistant", 'questions'),
+    'questions': ('questions à l\'assistant', 'questions'),
   };
 
   static Future<bool> show(BuildContext context, String kind) async {
@@ -21,7 +21,8 @@ class LimitDialog {
       builder: (context) => AlertDialog(
         title: const Text('Limite gratuite atteinte'),
         content: Text(
-          "Vous avez utilisé votre quota gratuit du jour pour ${label.$1}.\n\n"
+          'Vous avez utilisé votre quota gratuit du jour pour '
+          '${label.$1}.\n\n'
           'Regardez une courte pub pour continuer, ou passez en version '
           'Pro (sans pub, illimité).',
         ),
@@ -44,6 +45,7 @@ class LimitDialog {
       ),
     );
 
+    if (!context.mounted) return false;
     if (action == _LimitAction.pro) {
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ProScreen()),

@@ -92,12 +92,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 
   Future<void> _importGguf() async {
-    final picked = await FilePicker.platform.pickFile(
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['gguf', 'bin'],
     );
     if (picked == null) return;
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final target = File(await ModelPaths.llmModelPath());
       await target.parent.create(recursive: true);
@@ -162,7 +162,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
       if (!mounted) return;
       setState(() => _messages.add(_ChatMessage(
             fromUser: false,
-            text: "Erreur : $e",
+            text: 'Erreur : $e',
           )));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -199,23 +199,23 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 
   Widget _unavailableCard() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.smart_toy_outlined, size: 40),
-                const SizedBox(height: 12),
-                const Text(
+                Icon(Icons.smart_toy_outlined, size: 40),
+                SizedBox(height: 12),
+                Text(
                   'Assistant local indisponible',
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8),
+                Text(
                   "Le module natif llama.cpp n'est pas compilé dans ce "
                   'build. Voir engine/README.md (section « Chat local »).',
                   textAlign: TextAlign.center,
