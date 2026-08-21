@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:xml/xml.dart';
@@ -15,7 +16,7 @@ import 'docx_parser.dart';
 /// (mêmes règles, même ordre) : chaque paragraphe traduisible consomme la
 /// traduction suivante de la file de sa partie.
 class DocxWriter {
-  static Future<List<int>> writeTranslated(
+  static Future<Uint8List> writeTranslated(
     List<int> original,
     IrDocument ir,
     String lang,
