@@ -165,14 +165,12 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
     final pageNumber = widget.page.pageNumber;
     try {
       await controller.translatePage(pageNumber);
-      _notifyDetectedLanguage(controller, messenger);
     } on QuotaExceededException {
       if (!mounted) return;
       final unlocked = await LimitDialog.show(context, 'pages');
       if (unlocked && mounted) {
         try {
           await controller.translatePage(pageNumber);
-          _notifyDetectedLanguage(controller, messenger);
         } catch (e) {
           messenger.showSnackBar(
             SnackBar(content: Text('Traduction impossible : $e')),
@@ -184,28 +182,6 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
         SnackBar(content: Text('Traduction impossible : $e')),
       );
     }
-  }
-
-  /// Retour visible de la détection automatique : une fois par écran, un
-  /// SnackBar indique la langue détectée et la cible utilisée.
-  bool _detectionNotified = false;
-  void _notifyDetectedLanguage(
-    ReaderController controller,
-    ScaffoldMessengerState messenger,
-  ) {
-    if (_detectionNotified || !mounted) return;
-    final detected = controller.detectedLanguage;
-    if (detected == null) return;
-    _detectionNotified = true;
-    final pair = controller.effectivePair;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Langue du document détectée : $detected → traduction en ${pair.to}',
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    );
   }
 }
 

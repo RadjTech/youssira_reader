@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -34,10 +36,14 @@ class PdfBlockExtractor {
     final page = document.pages[pageNumber - 1];
     final pageText = await page.loadStructuredText();
 
-    final blocks = _groupFragmentsIntoLines(pageText);
-    if (blocks.isEmpty) {
+    final lines = _groupFragmentsIntoLines(pageText);
+    if (lines.isEmpty) {
       return _ocr.recognizePage(page);
     }
+    // Les lignes d'un même paragraphe sont regroupées AVANT traduction :
+    // une phrase coupée sur plusieurs lignes est traduite d'un seul tenant
+    // (plus de traductions coupées ni de trous entre les patchs).
+    final blocks = _mergeLinesIntoParagraphs(lines);
     final styled = await _withStyles(page, blocks);
     if (filePath == null) return styled;
     // Le style réel (FFI) est un bonus : s'il échoue, on garde surtout les
@@ -87,7 +93,10 @@ class PdfBlockExtractor {
         final boxH = c.boxHeight;
         var size = c.fontSize;
         if (boxH > 0 && (size < 0.5 * boxH || size > 1.6 * boxH)) {
-          size = boxH;
+          // Matrice agrandie ou taille incohérente → géométrie, légèrement
+          // réduite : la boîte « loose » est plus haute que la taille
+          // visuelle de la police (ascendantes/descendantes incluses).
+          size = boxH * 0.8;
         }
         final key = (size * 2).roundToDouble() / 2;
         sizeCounts[key] = (sizeCounts[key] ?? 0) + 1;
@@ -224,6 +233,71 @@ class PdfBlockExtractor {
       bottom: bounds.bottom,
       source: BlockSource.native,
       fontSizeHint: maxLineHeight,
+    );
+  }
+
+  /// Regroupe les lignes consécutives d'un même paragraphe en un seul bloc.
+  ///
+  /// Critères (géométrie uniquement, robuste quel que soit le PDF) :
+  /// - espacement vertical normal entre les lignes (pas de saut de
+  ///   paragraphe) ;
+  /// - hauteurs de ligne comparables ;
+  /// - même marge gauche, OU même marge droite avec retrait à gauche
+  ///   (dernière ligne d'un paragraphe justifié).
+  ///
+  /// Les listes, titres et colonnes ne sont pas fusionnés : leurs retraits /
+  /// espacements / alignements diffèrent.
+  List<TextBlock> _mergeLinesIntoParagraphs(List<TextBlock> lines) {
+    if (lines.length < 2) return lines;
+
+    final result = <TextBlock>[];
+    var current = lines.first;
+    for (var i = 1; i < lines.length; i++) {
+      final next = lines[i];
+      if (_sameParagraph(current, next)) {
+        current = _joinParagraph(current, next);
+      } else {
+        result.add(current);
+        current = next;
+      }
+    }
+    result.add(current);
+    return result;
+  }
+
+  bool _sameParagraph(TextBlock upper, TextBlock lower) {
+    final lineH = math.min(upper.height, lower.height);
+    if (lineH <= 0) return false;
+
+    // Repère origine bas-gauche : « upper » est AU-DESSUS, donc son bottom
+    // est plus grand que le top de « lower ». gap = espace entre les boîtes.
+    final gap = upper.bottom - lower.top;
+    if (gap < -0.3 * lineH || gap > 0.6 * lineH) return false;
+
+    // Hauteurs de ligne comparables (même corps de texte).
+    final ratio = upper.height / lower.height;
+    if (ratio < 0.7 || ratio > 1.4) return false;
+
+    // Alignement horizontal.
+    final leftDif = (upper.left - lower.left).abs();
+    final rightDif = (upper.right - lower.right).abs();
+    if (leftDif <= 8) return true; // même marge gauche
+    if (rightDif <= 8 && leftDif <= 40) return true; // dernière ligne
+    return false;
+  }
+
+  TextBlock _joinParagraph(TextBlock a, TextBlock b) {
+    final text = '${a.text} ${b.text}'.trim();
+    return TextBlock(
+      id: TextBlock.computeId(text),
+      pageNumber: a.pageNumber,
+      text: text,
+      left: math.min(a.left, b.left),
+      top: math.max(a.top, b.top),
+      right: math.max(a.right, b.right),
+      bottom: math.min(a.bottom, b.bottom),
+      source: BlockSource.native,
+      fontSizeHint: math.max(a.fontSizeHint, b.fontSizeHint),
     );
   }
 }
