@@ -27,7 +27,7 @@ dependencies:
 
   # --- Monétisation : AdMob (interstitiel + récompensé, consentement UMP) ---
   # Série 5.x : l'API UMP (UserMessagingPlatform) y est exportée.
-  google_mobile_ads: ^5.1.0
+  google_mobile_ads: ^7.0.0
 
   # --- Achats intégrés Google Play (version Pro) ---
   in_app_purchase: ^3.3.0
