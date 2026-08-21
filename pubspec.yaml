@@ -31,6 +31,10 @@ dependencies:
   # --- Achats intégrés Google Play (version Pro) ---
   in_app_purchase: ^3.3.0
 
+  # --- Documents Word (.docx = ZIP + XML) : parseur/écrivain IR ---
+  archive: ^3.6.1
+  xml: ^6.5.0
+
   # --- Cache des traductions ---
   drift: ^2.20.2
   sqlite3_flutter_libs: ^0.5.24

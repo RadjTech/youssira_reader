@@ -100,4 +100,40 @@ class TranslationService {
       elapsed: stopwatch.elapsed,
     );
   }
+
+  /// Traduit un texte brut (IR document Word) : même pipeline que les
+  /// blocs — normalisation, protection des noms/URLs, cache, moteur, cache.
+  Future<({String translated, bool fromCache})> translateText(
+    String text, {
+    required TranslationEngineKind engine,
+    required String fromBcp,
+    required String toBcp,
+  }) async {
+    final impl = engineFor(engine);
+    final normalized = TextNormalizer.normalize(text);
+    final key = TranslationCache.keyFor(
+      text: normalized,
+      fromBcp: fromBcp,
+      toBcp: toBcp,
+      engineId: impl.id,
+    );
+
+    final cached = await TranslationCache.instance.get(key);
+    if (cached != null) return (translated: cached, fromCache: true);
+
+    final masked = TextProtector.mask(normalized);
+    final rawTranslated =
+        await impl.translate(masked.masked, fromBcp: fromBcp, toBcp: toBcp);
+    final translated = TextProtector.restore(rawTranslated, masked);
+
+    await TranslationCache.instance.put(
+      key: key,
+      sourceText: text,
+      translatedText: translated,
+      fromBcp: fromBcp,
+      toBcp: toBcp,
+      engineId: impl.id,
+    );
+    return (translated: translated, fromCache: false);
+  }
 }

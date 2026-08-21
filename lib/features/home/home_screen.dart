@@ -8,6 +8,8 @@ import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
 import '../reader/reader_controller.dart';
 import '../reader/reader_screen.dart';
+import '../word/word_controller.dart';
+import '../word/word_screen.dart';
 
 /// Écran d'accueil : ouvrir un PDF + documents récents.
 class HomeScreen extends StatefulWidget {
@@ -59,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // de stockage à demander sur Android.
     final picked = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: const ['pdf'],
+      allowedExtensions: const ['pdf', 'docx'],
     );
     final path = picked?.path;
     if (path == null) return;
@@ -78,14 +80,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final settings = await SettingsStore.load();
+    await _saveRecent(path);
+    if (!mounted) return;
+
+    // Documents Word : IR + rendu stylé + export .docx traduit.
+    if (path.toLowerCase().endsWith('.docx')) {
+      final bytes = await file.readAsBytes();
+      final segments = Uri.file(path).pathSegments;
+      final name = segments.isNotEmpty ? segments.last : path;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => WordScreen(
+            controller: WordController(
+              fileName: name,
+              originalBytes: bytes,
+              settings: settings,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     final controller = ReaderController(
       translationService: AppServices.instance.translationService,
       settings: settings,
     );
-
-    await _saveRecent(path);
-    if (!mounted) return;
-
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ReaderScreen(path: path, controller: controller),
@@ -103,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _pickAndOpen,
         icon: const Icon(Icons.folder_open),
-        label: const Text('Ouvrir un PDF'),
+        label: const Text('Ouvrir (PDF ou Word)'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -157,8 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final path = _recents[index];
         final segments = Uri.file(path).pathSegments;
         final name = segments.isNotEmpty ? segments.last : path;
+        final isWord = path.toLowerCase().endsWith('.docx');
         return ListTile(
-          leading: const Icon(Icons.picture_as_pdf),
+          leading: Icon(
+            isWord ? Icons.description_outlined : Icons.picture_as_pdf,
+          ),
           title: Text(name, overflow: TextOverflow.ellipsis),
           subtitle: Text(path, overflow: TextOverflow.ellipsis),
           onTap: () => _openDocument(path),

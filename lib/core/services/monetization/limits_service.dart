@@ -80,6 +80,15 @@ class LimitsService {
     return true;
   }
 
+  /// Consomme un nombre de pages équivalent à [chars] caractères
+  /// (~1 800 caractères ≈ 1 page A4) — utilisé par les documents Word.
+  void consumeCharPages(int chars) {
+    final pages = chars <= 0 ? 1 : (chars / 1800).ceil();
+    if (pagesLeft < pages) throw const QuotaExceededException('pages');
+    pagesLeft -= pages;
+    _save();
+  }
+
   /// Crédits ajoutés par une pub récompensée.
   Future<void> addReward(String kind) async {
     switch (kind) {
