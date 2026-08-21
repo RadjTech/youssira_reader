@@ -41,6 +41,9 @@ class PdfStyledChar {
   double get centerX => (left + right) / 2;
   double get centerY => (top + bottom) / 2;
 
+  /// Hauteur géométrique de la boîte du caractère (points PDF).
+  double get boxHeight => top - bottom;
+
   bool get isWhitespace => codeUnit <= 0x20;
 }
 

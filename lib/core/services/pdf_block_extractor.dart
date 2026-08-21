@@ -79,8 +79,17 @@ class PdfBlockExtractor {
       }
       matched++;
       if (c.fontSize > 0) {
-        // Arrondi au demi-point pour regrouper les tailles identiques.
-        final key = (c.fontSize * 2).roundToDouble() / 2;
+        // Taille « réelle » valide SEULEMENT si cohérente avec la géométrie
+        // du caractère. Certains PDF (titres, couvertures) utilisent une
+        // matrice de texte agrandie : la taille de police stockée est alors
+        // minuscule (ex. 1 pt pour un titre visuel de 24 pt) et donnerait un
+        // calque invisible. Dans ce cas on retombe sur la hauteur de boîte.
+        final boxH = c.boxHeight;
+        var size = c.fontSize;
+        if (boxH > 0 && (size < 0.5 * boxH || size > 1.6 * boxH)) {
+          size = boxH;
+        }
+        final key = (size * 2).roundToDouble() / 2;
         sizeCounts[key] = (sizeCounts[key] ?? 0) + 1;
       }
       if (c.fontWeight > maxWeight) maxWeight = c.fontWeight;
