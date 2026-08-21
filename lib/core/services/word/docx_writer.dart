@@ -56,7 +56,9 @@ class DocxWriter {
         out.addFile(ArchiveFile(file.name, file.size, file.content));
       }
     }
-    return ZipEncoder().encode(out);
+    // archive peut renvoyer List<int> ou Uint8List selon la version —
+    // conversion explicite pour satisfaire FilePicker.saveFile.
+    return Uint8List.fromList(ZipEncoder().encode(out));
   }
 
   /// Même parcours que le parseur : w:p du conteneur, puis paragraphes des
