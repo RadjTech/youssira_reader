@@ -94,10 +94,10 @@ class PdfiumStyledText {
       return const [];
     }
     final rect = calloc<FS_RECTF>();
-    final r = calloc<ffi.Uint32>();
-    final g = calloc<ffi.Uint32>();
-    final b = calloc<ffi.Uint32>();
-    final a = calloc<ffi.Uint32>();
+    final r = calloc<ffi.UnsignedInt>();
+    final g = calloc<ffi.UnsignedInt>();
+    final b = calloc<ffi.UnsignedInt>();
+    final a = calloc<ffi.UnsignedInt>();
     try {
       final count = pdfium.FPDFText_CountChars(textPage);
       if (count <= 0) return const [];
