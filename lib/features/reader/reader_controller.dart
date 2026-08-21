@@ -43,6 +43,7 @@ class ReaderController extends ChangeNotifier {
   final LanguageDetector _languageDetector = LanguageDetector();
 
   PdfDocument? _document;
+  String? _filePath;
   ReaderSettings _settings;
   String? _detectedLanguage;
   bool _preparing = false; // téléchargement modèles / préparation moteur
@@ -130,8 +131,10 @@ class ReaderController extends ChangeNotifier {
       _translatedPages.contains(pageNumber);
 
   /// À appeler une fois le document chargé par pdfrx.
-  void attachDocument(PdfDocument document) {
+  /// [filePath] permet l'extraction du style réel via l'API C de PDFium.
+  void attachDocument(PdfDocument document, String filePath) {
     _document = document;
+    _filePath = filePath;
     _pageCount = document.pages.length;
     notifyListeners();
   }
@@ -167,7 +170,11 @@ class ReaderController extends ChangeNotifier {
 
   Future<void> _extract(PdfDocument document, int pageNumber) async {
     try {
-      final blocks = await _extractor.extractPage(document, pageNumber);
+      final blocks = await _extractor.extractPage(
+        document,
+        pageNumber,
+        filePath: _filePath,
+      );
       _blocksByPage[pageNumber] = blocks;
       notifyListeners();
     } catch (e) {
@@ -341,6 +348,7 @@ class ReaderController extends ChangeNotifier {
   void dispose() {
     _languageDetector.dispose();
     _document = null;
+    _filePath = null;
     super.dispose();
   }
 }

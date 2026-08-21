@@ -105,6 +105,27 @@ class TextBlock {
     );
   }
 
+  /// Applique le style RÉEL lu dans le PDF (FFI PDFium) : taille de police,
+  /// couleur et graisse exactes, à la place des heuristiques bitmap.
+  /// Les paramètres null conservent la valeur existante.
+  TextBlock withRealStyle({double? fontSize, int? textColor, bool? bold}) {
+    return TextBlock(
+      id: id,
+      pageNumber: pageNumber,
+      text: text,
+      left: left,
+      top: top,
+      right: right,
+      bottom: bottom,
+      source: source,
+      fontSizeHint: fontSize ?? fontSizeHint,
+      textColor: textColor ?? this.textColor,
+      backgroundColor: backgroundColor,
+      bold: bold ?? this.bold,
+      uniformBackground: uniformBackground,
+    );
+  }
+
   @override
   String toString() => 'TextBlock(p$pageNumber, "$text")';
 }

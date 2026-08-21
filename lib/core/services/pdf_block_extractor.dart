@@ -2,6 +2,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../models/text_block.dart';
 import 'ocr_service.dart';
+import 'pdf/pdfium_styled_text.dart';
 import 'style_extractor.dart';
 
 /// Extrait les blocs de texte d'une page PDF avec leurs coordonnées ET leur
@@ -11,14 +12,24 @@ import 'style_extractor.dart';
 /// 1. `loadStructuredText()` (PDFium via pdfrx) → fragments avec bounding
 ///    boxes ;
 /// 2. regroupement des fragments en lignes ;
-/// 3. analyse bitmap ([StyleExtractor]) pour les couleurs / la graisse ;
-/// 4. si la page ne contient aucun texte natif (page scannée), fallback OCR.
+/// 3. analyse bitmap ([StyleExtractor]) pour la couleur de fond ;
+/// 4. style réel du texte (taille de police, graisse, couleur) lu
+///    directement dans le PDF via l'API C de PDFium
+///    ([PdfiumStyledText]) — remplace les heuristiques quand disponible ;
+/// 5. si la page ne contient aucun texte natif (page scannée), fallback OCR.
 class PdfBlockExtractor {
   PdfBlockExtractor({OcrService? ocrService}) : _ocr = ocrService ?? OcrService();
 
   final OcrService _ocr;
 
-  Future<List<TextBlock>> extractPage(PdfDocument document, int pageNumber) async {
+  /// [filePath] : chemin du PDF sur disque. Requis pour l'extraction du
+  /// style réel via l'API C de PDFium ; si absent, on garde les
+  /// heuristiques bitmap.
+  Future<List<TextBlock>> extractPage(
+    PdfDocument document,
+    int pageNumber, {
+    String? filePath,
+  }) async {
     final page = document.pages[pageNumber - 1];
     final pageText = await page.loadStructuredText();
 
@@ -26,7 +37,78 @@ class PdfBlockExtractor {
     if (blocks.isEmpty) {
       return _ocr.recognizePage(page);
     }
-    return _withStyles(page, blocks);
+    final styled = await _withStyles(page, blocks);
+    if (filePath == null) return styled;
+    final chars = PdfiumStyledText.extractPage(filePath, pageNumber - 1);
+    return _withRealStyles(styled, chars);
+  }
+
+  /// Remplace les heuristiques bitmap par les styles RÉELS du PDF
+  /// (PDFium `FPDFText`) : taille de police, graisse et couleur exactes par
+  /// caractère, agrégées par bloc (taille/couleur dominantes, graisse max).
+  /// Un bloc sans caractère correspondant garde son style heuristique.
+  List<TextBlock> _withRealStyles(
+    List<TextBlock> blocks,
+    List<PdfStyledChar> chars,
+  ) {
+    if (chars.isEmpty) return blocks;
+    return [for (final block in blocks) _mergeRealStyle(block, chars)];
+  }
+
+  TextBlock _mergeRealStyle(TextBlock block, List<PdfStyledChar> chars) {
+    final sizeCounts = <double, int>{};
+    final colorCounts = <int, int>{};
+    var maxWeight = -1;
+    var matched = 0;
+
+    for (final c in chars) {
+      if (c.isWhitespace) continue;
+      if (c.centerX < block.left ||
+          c.centerX > block.right ||
+          c.centerY < block.bottom ||
+          c.centerY > block.top) {
+        continue;
+      }
+      matched++;
+      if (c.fontSize > 0) {
+        // Arrondi au demi-point pour regrouper les tailles identiques.
+        final key = (c.fontSize * 2).roundToDouble() / 2;
+        sizeCounts[key] = (sizeCounts[key] ?? 0) + 1;
+      }
+      if (c.fontWeight > maxWeight) maxWeight = c.fontWeight;
+      final rgb = c.colorRgb;
+      if (rgb != null) {
+        colorCounts[rgb] = (colorCounts[rgb] ?? 0) + 1;
+      }
+    }
+    if (matched == 0) return block;
+
+    double? dominantSize;
+    var bestSizeCount = 0;
+    sizeCounts.forEach((size, n) {
+      if (n > bestSizeCount) {
+        bestSizeCount = n;
+        dominantSize = size;
+      }
+    });
+
+    int? dominantColor;
+    var bestColorCount = 0;
+    colorCounts.forEach((rgb, n) {
+      if (n > bestColorCount) {
+        bestColorCount = n;
+        dominantColor = rgb;
+      }
+    });
+
+    final color = dominantColor;
+    return block.withRealStyle(
+      fontSize: dominantSize,
+      textColor: color != null ? 0xFF000000 | color : null,
+      // PDFium : 400 = normal, 700 = gras. -1 = inconnu → on garde
+      // l'heuristique bitmap.
+      bold: maxWeight > 0 ? maxWeight >= 550 : null,
+    );
   }
 
   /// Échantillonne le style visuel de chaque bloc sur le rendu bitmap.

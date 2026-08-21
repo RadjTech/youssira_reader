@@ -43,7 +43,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (_attached) return;
     _attached = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.attachDocument(document);
+      widget.controller.attachDocument(document, widget.path);
     });
   }
 
