@@ -30,7 +30,7 @@ class TranslationCacheDb extends _$TranslationCacheDb {
   TranslationCacheDb(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -39,6 +39,11 @@ class TranslationCacheDb extends _$TranslationCacheDb {
             // v2 : nouvelles règles de « traduction intelligente » (code
             // laissé intact, points de conduite protégés, couleurs
             // dominantes). Les entrées antérieures sont obsolètes.
+            await delete(translations).go();
+          }
+          if (from < 3) {
+            // v3 : purge des entrées contaminées pendant la mise au point
+            // (traductions stockées égales au texte source, en anglais).
             await delete(translations).go();
           }
         },

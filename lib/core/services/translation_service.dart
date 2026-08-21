@@ -60,8 +60,9 @@ class TranslationService {
     required String toBcp,
   }) async {
     final impl = engineFor(engine);
+    final normalized = TextNormalizer.normalize(block.text);
     final key = TranslationCache.keyFor(
-      text: TextNormalizer.normalize(block.text),
+      text: normalized,
       fromBcp: fromBcp,
       toBcp: toBcp,
       engineId: impl.id,
@@ -70,7 +71,9 @@ class TranslationService {
     final stopwatch = Stopwatch()..start();
 
     final cached = await TranslationCache.instance.get(key);
-    if (cached != null) {
+    // Garde anti-contamination : une entrée de cache égale au texte source
+    // est un résidu d'un ancien état du moteur — on la considère absente.
+    if (cached != null && cached.trim() != normalized.trim()) {
       return TranslationResult(
         block: block,
         translated: cached,
@@ -79,19 +82,24 @@ class TranslationService {
       );
     }
 
-    final masked = TextProtector.mask(TextNormalizer.normalize(block.text));
+    final masked = TextProtector.mask(normalized);
     final rawTranslated =
         await impl.translate(masked.masked, fromBcp: fromBcp, toBcp: toBcp);
     final translated = TextProtector.restore(rawTranslated, masked);
 
-    await TranslationCache.instance.put(
-      key: key,
-      sourceText: block.text,
-      translatedText: translated,
-      fromBcp: fromBcp,
-      toBcp: toBcp,
-      engineId: impl.id,
-    );
+    // On ne met en cache que les VRAIES traductions : un résultat égal au
+    // source (fallback moteur, contenu entièrement protégé…) polluerait le
+    // cache pour toujours.
+    if (translated.trim() != normalized.trim()) {
+      await TranslationCache.instance.put(
+        key: key,
+        sourceText: block.text,
+        translatedText: translated,
+        fromBcp: fromBcp,
+        toBcp: toBcp,
+        engineId: impl.id,
+      );
+    }
 
     return TranslationResult(
       block: block,
@@ -119,21 +127,26 @@ class TranslationService {
     );
 
     final cached = await TranslationCache.instance.get(key);
-    if (cached != null) return (translated: cached, fromCache: true);
+    // Garde anti-contamination (voir translateBlock).
+    if (cached != null && cached.trim() != normalized.trim()) {
+      return (translated: cached, fromCache: true);
+    }
 
     final masked = TextProtector.mask(normalized);
     final rawTranslated =
         await impl.translate(masked.masked, fromBcp: fromBcp, toBcp: toBcp);
     final translated = TextProtector.restore(rawTranslated, masked);
 
-    await TranslationCache.instance.put(
-      key: key,
-      sourceText: text,
-      translatedText: translated,
-      fromBcp: fromBcp,
-      toBcp: toBcp,
-      engineId: impl.id,
-    );
+    if (translated.trim() != normalized.trim()) {
+      await TranslationCache.instance.put(
+        key: key,
+        sourceText: text,
+        translatedText: translated,
+        fromBcp: fromBcp,
+        toBcp: toBcp,
+        engineId: impl.id,
+      );
+    }
     return (translated: translated, fromCache: false);
   }
 }
