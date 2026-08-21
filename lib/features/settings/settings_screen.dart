@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
+import 'pro_screen.dart';
 import '../../core/services/cache/translation_cache.dart';
 import '../../core/services/model_paths.dart';
 import 'language_models_screen.dart';
@@ -190,6 +191,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: OutlinedButton(
               onPressed: _importing ? null : _importModel,
               child: const Text('Importer'),
+            ),
+          ),
+          const Divider(height: 32),
+          _sectionHeader('Version Premium'),
+          ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined),
+            title: const Text('Youssira Pro'),
+            subtitle: Text(
+              AppServices.instance.entitlements.isPro
+                  ? 'Pro actif : sans pub, illimité ✓'
+                  : 'Sans pub, tout illimité (mensuel ou à vie).',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProScreen()),
             ),
           ),
           const Divider(height: 32),

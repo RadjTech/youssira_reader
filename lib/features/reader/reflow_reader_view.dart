@@ -3,6 +3,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/text_block.dart';
+import '../../core/services/monetization/limits_service.dart';
 import 'reader_controller.dart';
 
 /// Mode lecture : le document est retypographié comme un ebook — confort
@@ -48,6 +49,9 @@ class _ReflowPageState extends State<_ReflowPage> {
       await controller.ensureBlocks(widget.pageNumber);
       try {
         await controller.translatePage(widget.pageNumber);
+      } on QuotaExceededException {
+        // Quota gratuit atteint : arrêt silencieux en mode lecture
+        // (l'utilisateur repassera par le mode superposé pour débloquer).
       } catch (e) {
         if (mounted) setState(() => _error = '$e');
       }

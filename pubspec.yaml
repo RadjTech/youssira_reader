@@ -25,6 +25,12 @@ dependencies:
   # --- OCR on-device pour PDF scannés (ML Kit Text Recognition v2) ---
   google_mlkit_text_recognition: ^0.17.1
 
+  # --- Monétisation : AdMob (interstitiel + récompensé, consentement UMP) ---
+  google_mobile_ads: ^9.1.0
+
+  # --- Achats intégrés Google Play (version Pro) ---
+  in_app_purchase: ^3.3.0
+
   # --- Cache des traductions ---
   drift: ^2.20.2
   sqlite3_flutter_libs: ^0.5.24

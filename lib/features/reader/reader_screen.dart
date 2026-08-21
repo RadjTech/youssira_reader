@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
+import '../../core/services/monetization/limits_service.dart';
 import '../../core/services/pdf_export_service.dart';
 import '../assistant/assistant_screen.dart';
+import '../monetization/limit_dialog.dart';
 import '../settings/settings_screen.dart';
 import 'page_translation_overlay.dart';
 import 'reader_controller.dart';
@@ -64,6 +67,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await controller.translateWholeDocument();
+    } on QuotaExceededException {
+      final unlocked = await LimitDialog.show(context, 'pages');
+      if (unlocked && mounted) {
+        try {
+          await controller.translateWholeDocument();
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Traduction impossible : $e')),
+          );
+        }
+      }
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text('Traduction impossible : $e')),
@@ -148,6 +162,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       await controller.translateWholeDocument();
     }
 
+    // Quota gratuit d'exports (Pro = illimité) : dialogue pub/Pro si atteint.
+    if (!AppServices.instance.entitlements.isPro) {
+      try {
+        AppServices.instance.limits.tryConsumeExport();
+      } on QuotaExceededException {
+        final unlocked = await LimitDialog.show(context, 'exports');
+        if (!unlocked) return;
+      }
+    }
+
     final progress = ValueNotifier<double>(0);
     final label = ValueNotifier<String>('Export…');
     showDialog<void>(
@@ -184,6 +208,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
       if (!mounted) return;
       Navigator.of(context).pop();
+      // Interstitiel après un export réussi (jamais pour les Pro,
+      // jamais bloquant : hors-ligne, rien ne s'affiche).
+      if (!AppServices.instance.entitlements.isPro) {
+        await AppServices.instance.ads.showInterstitial();
+      }
+      if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
           content: Text(

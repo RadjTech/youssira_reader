@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import '../../core/app_services.dart';
 import '../../core/models/reader_settings.dart';
 import '../../core/models/text_block.dart';
 import '../../core/services/language_detector.dart';
@@ -232,6 +233,13 @@ class ReaderController extends ChangeNotifier {
       _translatedPages.add(pageNumber);
       notifyListeners();
       return;
+    }
+
+    // Quota gratuit journalier (Pro = illimité). Lève
+    // QuotaExceededException que l'UI transforme en dialogue
+    // pub récompensée / Pro.
+    if (!AppServices.instance.entitlements.isPro) {
+      AppServices.instance.limits.tryConsumePage();
     }
 
     for (final block in blocks) {

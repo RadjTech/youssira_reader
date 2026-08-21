@@ -176,3 +176,43 @@ Les PR sont bienvenues. Axes prioritaires : optimisation mémoire (mmap/décharg
 
 ### **10. Licence**
 MIT License
+
+## Monétisation (AdMob + version Pro)
+
+Modèle : **freemium** — gratuit avec limites journalières (30 pages
+traduites, 1 export, 5 questions assistant), déblocables par pub
+récompensée ; **Pro** (abonnement mensuel `youssira_pro_monthly` ou achat
+à vie `youssira_pro_lifetime`) = sans pub + illimité.
+
+Emplacements pub (jamais pendant la lecture) :
+- interstitiel après un export PDF réussi ;
+- pub récompensée dans les dialogues « limite atteinte ».
+
+### 1. AdMob
+
+1. Créer le compte AdMob + l'application, récupérer :
+   - l'**APPLICATION_ID** ;
+   - un ID d'unité **interstitielle** et un ID d'unité **récompensée**.
+2. Dans `android/app/src/main/AndroidManifest.xml` (dans `<application>`),
+   remplacer la valeur de test :
+
+```xml
+<meta-data
+    android:name="com.google.android.gms.ads.APPLICATION_ID"
+    android:value="ca-app-pub-3940256099942544~3347511713" />
+```
+
+3. Remplacer les IDs d'unités de test dans
+   `lib/core/services/monetization/monetization_config.dart`.
+
+Le consentement **UMP** (réglementation UE/UK) est géré automatiquement au
+premier lancement. Hors-ligne : aucune pub, rien ne bloque.
+
+### 2. Play Console (Pro)
+
+Créer dans Play Console :
+- un **abonnement** `youssira_pro_monthly` ;
+- un **produit unique** `youssira_pro_lifetime`.
+
+L'écran Réglages → « Youssira Pro » les affiche avec leurs prix et gère
+l'achat + « Restaurer mes achats ».

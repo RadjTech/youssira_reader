@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/app_services.dart';
 import '../../core/services/assistant/llama_chat_service.dart';
+import '../../core/services/monetization/limits_service.dart';
 import '../../core/services/model_paths.dart';
+import '../monetization/limit_dialog.dart';
 import '../reader/reader_controller.dart';
 
 class _ChatMessage {
@@ -128,6 +131,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   Future<void> _send(String userText) async {
     if (userText.trim().isEmpty || _busy) return;
+
+    // Quota gratuit de questions (Pro = illimité) : dialogue pub/Pro.
+    if (!AppServices.instance.entitlements.isPro) {
+      try {
+        AppServices.instance.limits.tryConsumeQuestion();
+      } on QuotaExceededException {
+        final unlocked = await LimitDialog.show(context, 'questions');
+        if (!unlocked) return;
+      }
+    }
+
     _input.clear();
     setState(() {
       _messages.add(_ChatMessage(fromUser: true, text: userText));

@@ -1,4 +1,7 @@
 import 'services/cache/translation_cache.dart';
+import 'services/monetization/ad_service.dart';
+import 'services/monetization/entitlements_service.dart';
+import 'services/monetization/limits_service.dart';
 import 'services/translation/mlkit_translation_engine.dart';
 import 'services/translation/native_translation_engine.dart';
 import 'services/translation_service.dart';
@@ -12,6 +15,9 @@ class AppServices {
   late final MlkitTranslationEngine mlkitEngine;
   late final NativeTranslationEngine nativeEngine;
   late final TranslationService translationService;
+  late final LimitsService limits;
+  late final EntitlementsService entitlements;
+  late final AdService ads;
 
   Future<void> init() async {
     mlkitEngine = MlkitTranslationEngine();
@@ -22,6 +28,13 @@ class AppServices {
         nativeEngine.id: nativeEngine,
       },
     );
+    limits = LimitsService();
+    entitlements = EntitlementsService();
+    ads = AdService();
+    await limits.init();
+    await entitlements.init();
+    // Consentement UMP + initialisation AdMob (jamais bloquant hors-ligne).
+    await ads.init();
   }
 
   /// Libère les ressources (appelé à la fermeture de l'app si besoin).

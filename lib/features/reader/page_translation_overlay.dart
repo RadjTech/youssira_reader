@@ -3,6 +3,8 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
+import '../../core/services/monetization/limits_service.dart';
+import '../monetization/limit_dialog.dart';
 import 'reader_controller.dart';
 
 /// Calques de traduction d'une page, rendus DANS le viewer pdfrx via
@@ -146,24 +148,39 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
       );
     } else {
       content = FilledButton.icon(
-        onPressed: controller.busy
-            ? null
-            : () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await controller.translatePage(pageNumber);
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Traduction impossible : $e')),
-                  );
-                }
-              },
+        onPressed:
+            controller.busy ? null : () => _onTranslatePressed(controller),
         icon: const Icon(Icons.translate),
         label: Text('Traduire la page $pageNumber'),
       );
     }
 
     return Positioned.fill(child: Center(child: content));
+  }
+
+  /// Bouton « Traduire la page » : en cas de quota gratuit atteint, ouvre
+  /// le dialogue pub récompensée / Pro, puis réessaie si débloqué.
+  Future<void> _onTranslatePressed(ReaderController controller) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final pageNumber = widget.page.pageNumber;
+    try {
+      await controller.translatePage(pageNumber);
+    } on QuotaExceededException {
+      final unlocked = await LimitDialog.show(context, 'pages');
+      if (unlocked && context.mounted) {
+        try {
+          await controller.translatePage(pageNumber);
+        } catch (e) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Traduction impossible : $e')),
+          );
+        }
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Traduction impossible : $e')),
+      );
+    }
   }
 }
 
