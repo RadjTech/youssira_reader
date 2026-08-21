@@ -99,9 +99,16 @@ class _AssistantScreenState extends State<AssistantScreen> {
     );
     if (picked == null) return;
     try {
+      final srcPath = picked.path;
+      if (srcPath == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Chemin du fichier inaccessible.')),
+        );
+        return;
+      }
       final target = File(await ModelPaths.llmModelPath());
       await target.parent.create(recursive: true);
-      await File(picked.path).copy(target.path);
+      await File(srcPath).copy(target.path);
       await _check();
       messenger.showSnackBar(
         const SnackBar(content: Text('Modèle GGUF importé.')),

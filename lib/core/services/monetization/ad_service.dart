@@ -14,14 +14,30 @@ class AdService {
 
   Future<void> init() async {
     if (_initialized) return;
-    // Consentement (UMP) avant d'initialiser les pubs.
+    // Consentement (UMP, API google_mobile_ads 5.x) avant d'initialiser les
+    // pubs. Callbacks enveloppés dans des Completer avec timeout : jamais
+    // bloquant hors-ligne.
     try {
-      final info = await UserMessagingPlatform.requestConsentInfoUpdate(
+      final updated = Completer<bool>();
+      ConsentInformation.instance.requestConsentInfoUpdate(
         ConsentRequestParameters(tagForUnderAgeOfConsent: false),
+        () {
+          if (!updated.isCompleted) updated.complete(true);
+        },
+        (_) {
+          if (!updated.isCompleted) updated.complete(false);
+        },
       );
-      if (info.isConsentFormAvailable &&
-          info.status == ConsentStatus.required) {
-        await UserMessagingPlatform.loadAndShowConsentForm();
+      final ok = await updated.future
+          .timeout(const Duration(seconds: 10), onTimeout: () => false);
+      if (ok &&
+          await ConsentInformation.instance.isConsentFormAvailable()) {
+        final dismissed = Completer<void>();
+        await ConsentForm.loadAndShowConsentFormIfRequired((_) {
+          if (!dismissed.isCompleted) dismissed.complete();
+        });
+        await dismissed.future
+            .timeout(const Duration(minutes: 5), onTimeout: () {});
       }
     } catch (_) {
       // Jamais bloquant : sans consentement on servira des pubs

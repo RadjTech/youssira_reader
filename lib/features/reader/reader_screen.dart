@@ -178,6 +178,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
     }
 
+    if (!mounted) return;
     final progress = ValueNotifier<double>(0);
     final label = ValueNotifier<String>('Export…');
     unawaited(showDialog<void>(

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
@@ -129,17 +127,16 @@ class WordController extends ChangeNotifier {
 
     final base =
         fileName.replaceAll(RegExp(r'\.docx$', caseSensitive: false), '');
-    final outPath = await FilePicker.saveFile(
-      dialogTitle: 'Enregistrer le document traduit',
+    final outUri = await FilePicker.saveFile(
       fileName: '$base-traduit.docx',
-      type: FileType.custom,
-      allowedExtensions: const ['docx'],
+      bytes: bytes,
+      mimeType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      dialogTitle: 'Enregistrer le document traduit',
     );
-    if (outPath == null) return null;
-    final target =
-        outPath.toLowerCase().endsWith('.docx') ? outPath : '$outPath.docx';
-    await File(target).writeAsBytes(bytes);
-    return target;
+    if (outUri == null) return null;
+    // file_picker écrit déjà les bytes (SAF). On renvoie un chemin lisible.
+    return outUri.scheme == 'file' ? outUri.toFilePath() : outUri.toString();
   }
 
   @override

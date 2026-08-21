@@ -96,7 +96,7 @@ class DocxWriter {
     for (final t in textNodes) {
       // xml ≥ 6.5 : pas de setter text — on remplace l'enfant texte.
       t.children.clear();
-      t.addChild(XmlText(first ? translation : ''));
+      t.children.add(XmlText(first ? translation : ''));
       t.setAttribute('xml:space', 'preserve');
       first = false;
     }

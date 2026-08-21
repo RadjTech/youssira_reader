@@ -30,9 +30,8 @@ class PdfExportService {
     required void Function(double? progress, String label) onProgress,
   }) async {
     final source = await PdfDocument.openFile(sourcePath);
-    try {
-      final doc = pw.Document();
-      final pages = source.pages.length;
+    final doc = pw.Document();
+    final pages = source.pages.length;
 
       for (var n = 1; n <= pages; n++) {
         onProgress(((n - 1) / pages) * 0.9, 'Export — page $n/$pages');
@@ -77,21 +76,18 @@ class PdfExportService {
           .split(Platform.pathSeparator)
           .last
           .replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
-      final outPath = await FilePicker.saveFile(
-        dialogTitle: 'Enregistrer le PDF traduit',
+      final outUri = await FilePicker.saveFile(
         fileName: '$base-traduit.pdf',
+        bytes: bytes,
+        mimeType: 'application/pdf',
+        dialogTitle: 'Enregistrer le PDF traduit',
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
       );
-      if (outPath == null) return null;
-      final target =
-          outPath.toLowerCase().endsWith('.pdf') ? outPath : '$outPath.pdf';
-      await File(target).writeAsBytes(bytes);
+      if (outUri == null) return null;
       onProgress(1.0, 'Terminé');
-      return target;
-    } finally {
-      await source.close();
-    }
+      // file_picker écrit déjà les bytes (SAF). On renvoie un chemin lisible.
+      return outUri.scheme == 'file' ? outUri.toFilePath() : outUri.toString();
   }
 
   /// Patch + texte traduit d'un bloc (ou texte original en mode léger si le
