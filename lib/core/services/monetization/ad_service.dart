@@ -14,6 +14,7 @@ class AdService {
 
   Future<void> init() async {
     if (_initialized) return;
+    if (MonetizationConfig.devMode) return; // pas de pubs en dev
     // Consentement (UMP, API google_mobile_ads 5.x) avant d'initialiser les
     // pubs. Callbacks enveloppés dans des Completer avec timeout : jamais
     // bloquant hors-ligne.

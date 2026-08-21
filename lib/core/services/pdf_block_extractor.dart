@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../models/text_block.dart';
@@ -39,8 +40,15 @@ class PdfBlockExtractor {
     }
     final styled = await _withStyles(page, blocks);
     if (filePath == null) return styled;
-    final chars = PdfiumStyledText.extractPage(filePath, pageNumber - 1);
-    return _withRealStyles(styled, chars);
+    // Le style réel (FFI) est un bonus : s'il échoue, on garde surtout les
+    // blocs heuristiques — jamais d'échec d'extraction à cause de lui.
+    try {
+      final chars = PdfiumStyledText.extractPage(filePath, pageNumber - 1);
+      return _withRealStyles(styled, chars);
+    } catch (e) {
+      debugPrint('Style PDFium ignoré (page $pageNumber) : $e');
+      return styled;
+    }
   }
 
   /// Remplace les heuristiques bitmap par les styles RÉELS du PDF

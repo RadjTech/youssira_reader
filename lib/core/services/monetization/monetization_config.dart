@@ -5,6 +5,11 @@
 /// - APPLICATION_ID dans AndroidManifest.xml ;
 /// - interstitialUnitId / rewardedUnitId ci-dessous.
 class MonetizationConfig {
+  /// MODE DÉVELOPPEMENT : true = pubs, quotas et achats totalement
+  /// désactivés (tests illimités, zéro dépendance AdMob/Play Billing).
+  /// Repasser à false avant publication.
+  static const bool devMode = true;
+
   // IDs de test Google (Android).
   static const interstitialUnitId = 'ca-app-pub-3940256099942544/1033173712';
   static const rewardedUnitId = 'ca-app-pub-3940256099942544/5224354917';

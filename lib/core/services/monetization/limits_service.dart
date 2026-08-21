@@ -60,6 +60,7 @@ class LimitsService {
   /// Consomme une page traduite. Lève [QuotaExceededException] à 0.
   /// (La vérification Pro est faite par l'appelant via EntitlementsService.)
   bool tryConsumePage() {
+    if (MonetizationConfig.devMode) return true; // illimité en dev
     if (pagesLeft <= 0) throw const QuotaExceededException('pages');
     pagesLeft--;
     _save();
@@ -67,6 +68,7 @@ class LimitsService {
   }
 
   bool tryConsumeExport() {
+    if (MonetizationConfig.devMode) return true; // illimité en dev
     if (exportsLeft <= 0) throw const QuotaExceededException('exports');
     exportsLeft--;
     _save();
@@ -74,6 +76,7 @@ class LimitsService {
   }
 
   bool tryConsumeQuestion() {
+    if (MonetizationConfig.devMode) return true; // illimité en dev
     if (questionsLeft <= 0) throw const QuotaExceededException('questions');
     questionsLeft--;
     _save();
@@ -83,6 +86,7 @@ class LimitsService {
   /// Consomme un nombre de pages équivalent à [chars] caractères
   /// (~1 800 caractères ≈ 1 page A4) — utilisé par les documents Word.
   void consumeCharPages(int chars) {
+    if (MonetizationConfig.devMode) return; // illimité en dev
     final pages = chars <= 0 ? 1 : (chars / 1800).ceil();
     if (pagesLeft < pages) throw const QuotaExceededException('pages');
     pagesLeft -= pages;

@@ -190,7 +190,14 @@ class ReaderController extends ChangeNotifier {
     if (_detectedLanguage == null) {
       await ensureBlocks(1);
       final sample = blocksForPage(1).take(3).map((b) => b.text).join(' ');
-      _detectedLanguage = await _languageDetector.detect(sample);
+      try {
+        _detectedLanguage = await _languageDetector.detect(sample);
+      } catch (e) {
+        // La détection est un confort : si elle échoue (modèle absent,
+        // échantillon vide…), on traduit avec la paire des réglages.
+        debugPrint('Détection de langue échouée : $e');
+        _detectedLanguage = null;
+      }
     }
     final pair = effectivePair;
     await _translationService.prepareEngine(

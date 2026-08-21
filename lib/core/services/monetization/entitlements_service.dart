@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'monetization_config.dart';
+
 /// Version Pro (achat intégré Google Play) : aucune pub, limites levées.
 /// Deux produits : abonnement mensuel et achat à vie.
 ///
@@ -20,7 +22,7 @@ class EntitlementsService extends ChangeNotifier {
   List<ProductDetails> _products = [];
   StreamSubscription<List<PurchaseDetails>>? _sub;
 
-  bool get isPro => _pro;
+  bool get isPro => MonetizationConfig.devMode ? true : _pro;
   bool get storeAvailable => _storeAvailable;
   List<ProductDetails> get products => _products;
 
@@ -32,6 +34,7 @@ class EntitlementsService extends ChangeNotifier {
   }
 
   Future<void> init() async {
+    if (MonetizationConfig.devMode) return; // pas de Play Billing en dev
     final prefs = await SharedPreferences.getInstance();
     _pro = prefs.getBool(_kPro) ?? false;
 

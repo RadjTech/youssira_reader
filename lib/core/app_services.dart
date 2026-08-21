@@ -2,6 +2,7 @@ import 'services/cache/translation_cache.dart';
 import 'services/monetization/ad_service.dart';
 import 'services/monetization/entitlements_service.dart';
 import 'services/monetization/limits_service.dart';
+import 'services/monetization/monetization_config.dart';
 import 'services/translation/mlkit_translation_engine.dart';
 import 'services/translation/native_translation_engine.dart';
 import 'services/translation_service.dart';
@@ -32,9 +33,14 @@ class AppServices {
     entitlements = EntitlementsService();
     ads = AdService();
     await limits.init();
-    await entitlements.init();
-    // Consentement UMP + initialisation AdMob (jamais bloquant hors-ligne).
-    await ads.init();
+    if (MonetizationConfig.devMode) return; // dev : pas de pubs/achats
+    // Play Billing + AdMob : jamais bloquant, même si un service échoue.
+    try {
+      await entitlements.init();
+    } catch (_) {}
+    try {
+      await ads.init();
+    } catch (_) {}
   }
 
   /// Libère les ressources (appelé à la fermeture de l'app si besoin).
