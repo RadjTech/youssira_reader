@@ -202,6 +202,11 @@ Emplacements pub (jamais pendant la lecture) :
     android:value="ca-app-pub-3940256099942544~3347511713" />
 ```
 
+   ⚠️ Ce `<meta-data>` doit être un **enfant direct de `<application>`**
+   (à côté de `flutterEmbedding`), PAS à l'intérieur de `<activity>` —
+   sinon le SDK AdMob ne le voit pas et l'app plante au démarrage
+   (« Missing application ID »).
+
 3. Remplacer les IDs d'unités de test dans
    `lib/core/services/monetization/monetization_config.dart`.
 
