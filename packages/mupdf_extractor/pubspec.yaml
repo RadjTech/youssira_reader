@@ -1,0 +1,19 @@
+name: mupdf_extractor
+description: "Extraction de texte structuré (police/taille/gras/italique réels) via MuPDF (AGPL)."
+version: 0.1.0
+publish_to: "none"
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.radjtech.mupdf_extractor
+        pluginClass: MupdfExtractorPlugin

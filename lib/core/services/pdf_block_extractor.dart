@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:mupdf_extractor/mupdf_extractor.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../models/text_block.dart';
@@ -46,15 +47,76 @@ class PdfBlockExtractor {
     final blocks = _mergeLinesIntoParagraphs(lines);
     final styled = await _withStyles(page, blocks);
     if (filePath == null) return styled;
-    // Le style réel (FFI) est un bonus : s'il échoue, on garde surtout les
-    // blocs heuristiques — jamais d'échec d'extraction à cause de lui.
+    var result = styled;
+    // Le style réel (FFI) est un bonus : s'il échoue, on garde les blocs
+    // heuristiques — jamais d'échec d'extraction à cause de lui.
     try {
       final chars = PdfiumStyledText.extractPage(filePath, pageNumber - 1);
-      return _withRealStyles(styled, chars);
+      result = _withRealStyles(result, chars);
     } catch (e) {
       debugPrint('Style PDFium ignoré (page $pageNumber) : $e');
-      return styled;
     }
+    // MuPDF (AGPL) : tailles RÉELLES (matrices de texte déjà corrigées par
+    // MuPDF, pas de garde nécessaire), graisse/italique déduits du vrai nom
+    // de police. Échec → null → le style PDFium/heuristique reste.
+    try {
+      final mupdfSpans = await MupdfStyledText.extractPage(
+        filePath,
+        pageNumber - 1,
+      );
+      if (mupdfSpans != null) result = _withMupdfStyles(result, mupdfSpans);
+    } catch (e) {
+      debugPrint('Style MuPDF ignoré (page $pageNumber) : $e');
+    }
+    return result;
+  }
+
+  /// Applique les styles RÉELS de MuPDF à chaque bloc : taille exacte,
+  /// graisse et italique déduits du vrai nom de police (fiable, là où le
+  /// rendu bitmap échoue). La couleur reste fournie par PDFium FFI / le
+  /// bitmap car MuPDF ne l'expose pas dans ses liaisons Java.
+  List<TextBlock> _withMupdfStyles(
+    List<TextBlock> blocks,
+    List<MupdfSpan> spans,
+  ) {
+    final out = <TextBlock>[];
+    for (final block in blocks) {
+      final candidates = spans
+          .where((s) {
+            final sx = s.centerX, sy = s.centerY;
+            return sx >= block.left - 2 &&
+                sx <= block.right + 2 &&
+                sy >= block.bottom - 2 &&
+                sy <= block.top + 2;
+          })
+          .toList();
+      if (candidates.isEmpty) {
+        out.add(block);
+        continue;
+      }
+      double sizeSum = 0;
+      int sizeLen = 0, boldLen = 0, italicLen = 0;
+      for (final s in candidates) {
+        final w = s.text.trim().length;
+        if (w == 0) continue;
+        sizeSum += s.fontSize * w;
+        sizeLen += w;
+        if (s.isBold) boldLen += w;
+        if (s.isItalic) italicLen += w;
+      }
+      if (sizeLen == 0) {
+        out.add(block);
+        continue;
+      }
+      out.add(
+        block.withRealStyle(
+          fontSize: sizeSum / sizeLen,
+          bold: boldLen * 2 > sizeLen,
+          italic: italicLen * 2 > sizeLen,
+        ),
+      );
+    }
+    return out;
   }
 
   /// Remplace les heuristiques bitmap par les styles RÉELS du PDF

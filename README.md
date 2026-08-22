@@ -19,7 +19,7 @@ Une app mobile Flutter qui lit des PDF et traduit le texte directement par-dessu
 - **Mise en page préservée** : la traduction se superpose à l'emplacement exact du texte
 - **Zoom naturel** : les calques vivent dans le viewer pdfrx et suivent pinch-zoom / pan
 - **Détection auto de la langue** : la langue du document est détectée (ML Kit Language ID) ; mauvaise direction corrigée automatiquement
-- **APK léger** : les modèles se téléchargent à la demande (Play Asset Delivery), l'APK reste < 30 Mo
+- **Modèles à la demande** : les modèles de traduction se téléchargent via Play Asset Delivery
 - **Deux modes de traduction** : mode léger (ML Kit, ~30 Mo/paire de langues) et mode qualité (réseau neuronal int8)
 - **Rapide** : < 2 s par page A4 en mode qualité sur un smartphone milieu de gamme récent
 - **Support PDF natif + scanné** : extraction texte pdfium + OCR ML Kit
@@ -33,6 +33,7 @@ Une app mobile Flutter qui lit des PDF et traduit le texte directement par-dessu
 | --- | --- | --- | --- |
 | **UI + Rendu PDF** | Flutter 3.24+ / Dart | Interface, rendu, overlay | Multi-plateforme, UI réactive |
 | **Moteur PDF** | `pdfrx` (basé sur **pdfium**) | Rendu + extraction texte **avec coordonnées x,y,w,h** | pdfium expose les bounding boxes exactes (FPDFText), rendu natif rapide |
+| **Extraction structurée** | **MuPDF 1.24.9** (`net.timelegend.mupdf:fitz`, AGPL) via le plugin local `packages/mupdf_extractor` | Police/taille/gras/italique **réels** par span | Tailles exactes (matrices de texte déjà corrigées), styles fiables par nom de police |
 | **OCR (PDF scannés)** | **ML Kit Text Recognition v2** | Texte des pages images, on-device | Gratuit, intégré Android, pas de modèle à gérer soi-même |
 | **Traduction — mode léger** | **ML Kit Translation API** | FR ⇄ EN, ~30 Mo par paire de langues | Zéro friction, tourne dès 2 Go de RAM, géré par Google Play Services |
 | **Traduction — mode qualité** | **CTranslate2** (C++ via JNI) + **opus-mt** ou **NLLB-600M** quantifiés int8 | Meilleure qualité, 10+ langues | Moteur C++ optimisé mobile, ~100–600 Mo selon modèle, inférence très rapide |
@@ -221,3 +222,17 @@ Créer dans Play Console :
 
 L'écran Réglages → « Youssira Pro » les affiche avec leurs prix et gère
 l'achat + « Restaurer mes achats ».
+
+---
+
+## Licence
+
+Youssira Reader est distribué sous **AGPLv3**.
+
+Cette licence découle de l'intégration de **MuPDF 1.24.9** (Artifex
+Software, AGPL-3.0) via le plugin local `packages/mupdf_extractor` et
+l'artefact Maven `net.timelegend.mupdf:fitz:1.24.9.7`. Conformément à
+l'AGPL, le code source complet de l'application est publié dans ce dépôt,
+y compris les modifications apportées à MuPDF (aucune à ce jour :
+l'artefact est utilisé tel quel). Voir https://mupdf.com et
+https://www.gnu.org/licenses/agpl-3.0.html.

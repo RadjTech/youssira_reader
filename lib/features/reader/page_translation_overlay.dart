@@ -111,6 +111,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             textColor: block.textColor,
             backgroundColor: block.backgroundColor,
             bold: block.bold,
+            italic: block.italic,
             uniformBackground: block.uniformBackground,
             patchHeight: block.height * scale,
             textAlign: layout.centered ? TextAlign.center : TextAlign.left,
@@ -223,6 +224,7 @@ class _TranslationOverlayBox extends StatelessWidget {
     required this.textColor,
     required this.backgroundColor,
     required this.bold,
+    required this.italic,
     required this.uniformBackground,
     required this.patchHeight,
     required this.textAlign,
@@ -236,6 +238,7 @@ class _TranslationOverlayBox extends StatelessWidget {
   final int textColor;
   final int backgroundColor;
   final bool bold;
+  final bool italic;
   final bool uniformBackground;
 
   /// Hauteur du patch de fond = hauteur de la boîte ORIGINALE. Le texte
@@ -276,6 +279,7 @@ class _TranslationOverlayBox extends StatelessWidget {
           height: 1.2,
           color: Color(color),
           fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
           shadows: uniformBackground ? null : _halo(color),
         ),
       ),

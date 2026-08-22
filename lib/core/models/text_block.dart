@@ -31,6 +31,7 @@ class TextBlock {
     this.textColor = 0xDE1A1A1A,
     this.backgroundColor = 0xFFFFFFFF,
     this.bold = false,
+    this.italic = false,
     this.uniformBackground = true,
   });
 
@@ -68,6 +69,9 @@ class TextBlock {
   /// Graisse détectée (heuristique : densité d'encre relative à la page).
   final bool bold;
 
+  /// Italique détecté (nom de police MuPDF : *Italic*/*Oblique*).
+  final bool italic;
+
   /// true si le fond du bloc est uniforme (page blanche, encadré uni…).
   /// false = fond complexe (image, capture, dégradé) : le calque ne pose
   /// alors AUCUN rectangle (style Google Lens : texte avec halo).
@@ -101,6 +105,7 @@ class TextBlock {
       textColor: textColor,
       backgroundColor: backgroundColor,
       bold: bold,
+      italic: italic,
       uniformBackground: uniformBackground,
     );
   }
@@ -108,7 +113,12 @@ class TextBlock {
   /// Applique le style RÉEL lu dans le PDF (FFI PDFium) : taille de police,
   /// couleur et graisse exactes, à la place des heuristiques bitmap.
   /// Les paramètres null conservent la valeur existante.
-  TextBlock withRealStyle({double? fontSize, int? textColor, bool? bold}) {
+  TextBlock withRealStyle({
+    double? fontSize,
+    int? textColor,
+    bool? bold,
+    bool? italic,
+  }) {
     return TextBlock(
       id: id,
       pageNumber: pageNumber,
@@ -122,6 +132,7 @@ class TextBlock {
       textColor: textColor ?? this.textColor,
       backgroundColor: backgroundColor,
       bold: bold ?? this.bold,
+      italic: italic ?? this.italic,
       uniformBackground: uniformBackground,
     );
   }

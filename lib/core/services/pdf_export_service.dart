@@ -146,7 +146,11 @@ class PdfExportService {
       text,
       textAlign: layout.centered ? pw.TextAlign.center : pw.TextAlign.left,
       style: pw.TextStyle(
-        font: block.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(),
+        font: block.bold
+            ? (block.italic
+                  ? pw.Font.helveticaBoldOblique()
+                  : pw.Font.helveticaBold())
+            : (block.italic ? pw.Font.helveticaOblique() : pw.Font.helvetica()),
         fontSize: block.fontSizeHint,
         color: color,
       ),

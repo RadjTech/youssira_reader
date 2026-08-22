@@ -1,0 +1,26 @@
+group 'com.radjtech.mupdf_extractor'
+version '1.0'
+
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.radjtech.mupdf_extractor'
+    compileSdk 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        minSdk 21
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+}
+
+dependencies {
+    // MuPDF (AGPL-3.0) : bindings Java + libmupdf natif précompilé.
+    implementation 'net.timelegend.mupdf:fitz:1.24.9.7'
+}
