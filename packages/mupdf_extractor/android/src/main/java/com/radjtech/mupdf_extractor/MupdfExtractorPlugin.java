@@ -17,6 +17,7 @@ import com.artifex.mupdf.fitz.StructuredText;
 import com.artifex.mupdf.fitz.StructuredTextWalker;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ public class MupdfExtractorPlugin
         }).start();
     }
 
-    private String extractPage(String path, int pageIndex) {
+    private String extractPage(String path, int pageIndex) throws JSONException {
         Document doc = Document.openDocument(path);
         if (doc == null) return null;
         try {
@@ -183,7 +184,7 @@ public class MupdfExtractorPlugin
             if (maxY > currentSpan.y1) currentSpan.y1 = maxY;
         }
 
-        String toJson(double pageH, Rect bounds) {
+        String toJson(double pageH, Rect bounds) throws JSONException {
             JSONObject root = new JSONObject();
             root.put("width", bounds.x1 - bounds.x0);
             root.put("height", pageH);
