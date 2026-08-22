@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
@@ -59,7 +61,25 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
   List<Widget> _buildOverlays(ReaderController controller, double scale) {
     final overlays = <Widget>[];
 
-    for (final block in controller.blocksForPage(widget.page.pageNumber)) {
+    final blocks = controller.blocksForPage(widget.page.pageNumber);
+    final pageW = widget.page.width;
+
+    // Marges utiles de la page : la traduction (souvent plus longue que
+    // l'original) dispose de toute la largeur jusqu'aux marges, comme un
+    // vrai composeur — au lieu d'être enfermée dans la boîte d'origine.
+    double leftMargin = 48;
+    double rightMargin = 48;
+    if (blocks.isNotEmpty) {
+      leftMargin = math.max(
+          24, math.min(96, blocks.map((b) => b.left).reduce(math.min)));
+      rightMargin = math.max(
+          24, math.min(96, blocks.map((b) => pageW - b.right).reduce(math.min)));
+    }
+    // Garde 2 colonnes : un bloc de la colonne gauche ne doit pas traverser
+    // la gouttière.
+    final hasRightColumn = blocks.any((b) => b.left > pageW * 0.5);
+
+    for (final block in blocks) {
       final progress = controller.progressFor(block.id);
       if (progress == null ||
           progress.state != BlockState.done ||
@@ -67,11 +87,20 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
         continue;
       }
 
+      // Bloc centré (titre…) : toute la largeur utile + texte centré.
+      final centered = (block.left - (pageW - block.right)).abs() < 18;
+      final boxLeft = centered ? leftMargin : block.left;
+      var boxWidth = pageW - rightMargin - boxLeft;
+      if (hasRightColumn && block.right < pageW * 0.55) {
+        boxWidth = math.min(boxWidth, pageW * 0.5 - boxLeft - 8);
+      }
+      boxWidth = math.max(boxWidth, block.width);
+
       // Repère PDF (origine bas-gauche) → repère du viewer (haut-gauche),
       // relatif au coin haut-gauche de la page.
-      final left = block.left * scale;
+      final left = boxLeft * scale;
       final top = (widget.page.height - block.top) * scale;
-      final width = block.width * scale;
+      final width = boxWidth * scale;
 
       // Police : 100 % de la taille apparente de l'original (choix
       // utilisateur) — jamais plus grande, pour éviter tout chevauchement.
@@ -97,6 +126,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             backgroundColor: block.backgroundColor,
             bold: block.bold,
             uniformBackground: block.uniformBackground,
+            textAlign: centered ? TextAlign.center : TextAlign.left,
           ),
         ),
       );
@@ -207,6 +237,7 @@ class _TranslationOverlayBox extends StatelessWidget {
     required this.backgroundColor,
     required this.bold,
     required this.uniformBackground,
+    required this.textAlign,
   });
 
   final String original;
@@ -218,6 +249,7 @@ class _TranslationOverlayBox extends StatelessWidget {
   final int backgroundColor;
   final bool bold;
   final bool uniformBackground;
+  final TextAlign textAlign;
 
   static double _lum(int c) {
     final r = (c >> 16) & 0xFF;
@@ -250,7 +282,7 @@ class _TranslationOverlayBox extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: padding),
         child: Text(
           translated,
-          textAlign: TextAlign.left,
+          textAlign: textAlign,
           textScaler: TextScaler.noScaling,
           style: TextStyle(
             fontSize: fontSize,
