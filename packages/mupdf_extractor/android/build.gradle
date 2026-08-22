@@ -1,9 +1,9 @@
-group 'com.radjtech.mupdf_extractor'
-version '1.0'
-
 plugins {
     id 'com.android.library'
 }
+
+group 'com.radjtech.mupdf_extractor'
+version '1.0'
 
 android {
     namespace 'com.radjtech.mupdf_extractor'
