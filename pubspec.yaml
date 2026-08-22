@@ -72,3 +72,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Polices ouvertes (SIL OFL, Google Noto) pour un calque fidèle à la
+  # famille d'origine du document : Noto Serif pour les polices à empatte-
+  # ments, Noto Sans Mono pour les polices à chasse fixe. La famille sans
+  # reste la police système (Roboto).
+  fonts:
+    - family: NotoSerif
+      fonts:
+        - asset: assets/fonts/NotoSerif-Regular.ttf
+        - asset: assets/fonts/NotoSerif-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSerif-Italic.ttf
+          style: italic
+        - asset: assets/fonts/NotoSerif-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: NotoSansMono
+      fonts:
+        - asset: assets/fonts/NotoSansMono-Regular.ttf
+        - asset: assets/fonts/NotoSansMono-Bold.ttf
+          weight: 700

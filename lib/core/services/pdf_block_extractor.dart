@@ -41,10 +41,25 @@ class PdfBlockExtractor {
     if (lines.isEmpty) {
       return _ocr.recognizePage(page);
     }
+    // MuPDF d'abord (si disponible) : ses spans police/taille RÉELS guident
+    // la fusion en paragraphes (un libellé gras ou un titre plus gros ne
+    // fusionne jamais avec le corps qui le suit), puis remplacent les
+    // heuristiques de style. Échec → null → fusion purement géométrique.
+    List<MupdfSpan>? mupdfSpans;
+    if (filePath != null) {
+      try {
+        mupdfSpans = await MupdfStyledText.extractPage(
+          filePath,
+          pageNumber - 1,
+        );
+      } catch (e) {
+        debugPrint('MuPDF ignoré (page $pageNumber) : $e');
+      }
+    }
     // Les lignes d'un même paragraphe sont regroupées AVANT traduction :
     // une phrase coupée sur plusieurs lignes est traduite d'un seul tenant
     // (plus de traductions coupées ni de trous entre les patchs).
-    final blocks = _mergeLinesIntoParagraphs(lines);
+    final blocks = _mergeLinesIntoParagraphs(lines, mupdfSpans);
     final styled = await _withStyles(page, blocks);
     if (filePath == null) return styled;
     var result = styled;
@@ -56,25 +71,18 @@ class PdfBlockExtractor {
     } catch (e) {
       debugPrint('Style PDFium ignoré (page $pageNumber) : $e');
     }
-    // MuPDF (AGPL) : tailles RÉELLES (matrices de texte déjà corrigées par
-    // MuPDF, pas de garde nécessaire), graisse/italique déduits du vrai nom
-    // de police. Échec → null → le style PDFium/heuristique reste.
-    try {
-      final mupdfSpans = await MupdfStyledText.extractPage(
-        filePath,
-        pageNumber - 1,
-      );
-      if (mupdfSpans != null) result = _withMupdfStyles(result, mupdfSpans);
-    } catch (e) {
-      debugPrint('Style MuPDF ignoré (page $pageNumber) : $e');
+    // MuPDF : tailles RÉELLES (matrices de texte déjà corrigées), graisse /
+    // italique / famille déduits du vrai nom de police.
+    if (mupdfSpans != null) {
+      result = _withMupdfStyles(result, mupdfSpans);
     }
     return result;
   }
 
   /// Applique les styles RÉELS de MuPDF à chaque bloc : taille exacte,
-  /// graisse et italique déduits du vrai nom de police (fiable, là où le
-  /// rendu bitmap échoue). La couleur reste fournie par PDFium FFI / le
-  /// bitmap car MuPDF ne l'expose pas dans ses liaisons Java.
+  /// graisse, italique et famille déduits du vrai nom de police (fiable,
+  /// là où le rendu bitmap échoue). La couleur reste fournie par PDFium
+  /// FFI / le bitmap car MuPDF ne l'expose pas dans ses liaisons Java.
   List<TextBlock> _withMupdfStyles(
     List<TextBlock> blocks,
     List<MupdfSpan> spans,
@@ -95,7 +103,7 @@ class PdfBlockExtractor {
         continue;
       }
       double sizeSum = 0;
-      int sizeLen = 0, boldLen = 0, italicLen = 0;
+      int sizeLen = 0, boldLen = 0, italicLen = 0, serifLen = 0, monoLen = 0;
       for (final s in candidates) {
         final w = s.text.trim().length;
         if (w == 0) continue;
@@ -103,16 +111,30 @@ class PdfBlockExtractor {
         sizeLen += w;
         if (s.isBold) boldLen += w;
         if (s.isItalic) italicLen += w;
+        if (s.isMono) {
+          monoLen += w;
+        } else if (s.isSerif) {
+          serifLen += w;
+        }
       }
       if (sizeLen == 0) {
         out.add(block);
         continue;
+      }
+      final TextFamily family;
+      if (monoLen * 2 > sizeLen) {
+        family = TextFamily.mono;
+      } else if (serifLen * 2 > sizeLen) {
+        family = TextFamily.serif;
+      } else {
+        family = TextFamily.sans;
       }
       out.add(
         block.withRealStyle(
           fontSize: sizeSum / sizeLen,
           bold: boldLen * 2 > sizeLen,
           italic: italicLen * 2 > sizeLen,
+          family: family,
         ),
       );
     }
@@ -300,31 +322,82 @@ class PdfBlockExtractor {
 
   /// Regroupe les lignes consécutives d'un même paragraphe en un seul bloc.
   ///
-  /// Critères (géométrie uniquement, robuste quel que soit le PDF) :
+  /// Critères géométriques (robustes quel que soit le PDF) :
   /// - espacement vertical normal entre les lignes (pas de saut de
   ///   paragraphe) ;
   /// - hauteurs de ligne comparables ;
   /// - même marge gauche, OU même marge droite avec retrait à gauche
   ///   (dernière ligne d'un paragraphe justifié).
   ///
+  /// Critère de style (quand MuPDF est disponible) : deux lignes ne
+  /// fusionnent que si elles ont la même graisse et une taille de police
+  /// comparable. Un libellé gras (« Problem Statements: »), un titre plus
+  /// gros ou une légende ne sont JAMAIS avalés par le corps qui les suit.
+  ///
   /// Les listes, titres et colonnes ne sont pas fusionnés : leurs retraits /
   /// espacements / alignements diffèrent.
-  List<TextBlock> _mergeLinesIntoParagraphs(List<TextBlock> lines) {
+  List<TextBlock> _mergeLinesIntoParagraphs(
+    List<TextBlock> lines,
+    List<MupdfSpan>? mupdfSpans,
+  ) {
     if (lines.length < 2) return lines;
+
+    final styles = mupdfSpans == null
+        ? null
+        : [for (final line in lines) _lineStyle(line, mupdfSpans)];
 
     final result = <TextBlock>[];
     var current = lines.first;
+    var currentStyle = styles?[0];
     for (var i = 1; i < lines.length; i++) {
       final next = lines[i];
-      if (_sameParagraph(current, next)) {
+      final nextStyle = styles?[i];
+      if (_sameParagraph(current, next) &&
+          _sameStyle(currentStyle, nextStyle)) {
         current = _joinParagraph(current, next);
+        currentStyle = nextStyle;
       } else {
         result.add(current);
         current = next;
+        currentStyle = nextStyle;
       }
     }
     result.add(current);
     return result;
+  }
+
+  /// Style dominant d'une ligne, déduit des spans MuPDF qui la recouvrent.
+  /// null si MuPDF n'a rien sur cette ligne → la fusion redevient
+  /// purement géométrique pour elle.
+  _LineStyle? _lineStyle(TextBlock line, List<MupdfSpan> spans) {
+    double sizeSum = 0;
+    int len = 0, boldLen = 0;
+    for (final s in spans) {
+      final sx = s.centerX, sy = s.centerY;
+      if (sx < line.left - 2 || sx > line.right + 2) continue;
+      if (sy < line.bottom - 2 || sy > line.top + 2) continue;
+      final w = s.text.trim().length;
+      if (w == 0) continue;
+      sizeSum += s.fontSize * w;
+      len += w;
+      if (s.isBold) boldLen += w;
+    }
+    if (len == 0) return null;
+    return _LineStyle(sizeSum / len, boldLen * 2 > len);
+  }
+
+  /// Compatibilité de style requise pour fusionner deux lignes. Sans info
+  /// MuPDF (null), on conserve le comportement historique (géométrie seule).
+  bool _sameStyle(_LineStyle? upper, _LineStyle? lower) {
+    if (upper == null || lower == null) return true;
+    if (upper.bold != lower.bold) return false;
+    final avg = (upper.size + lower.size) / 2;
+    // Tailles à ±10 % près : un titre nettement plus gros reste séparé,
+    // les petites variations de crénage/métrique fusionnent toujours.
+    if (avg > 0 && (upper.size - lower.size).abs() > 0.10 * avg) {
+      return false;
+    }
+    return true;
   }
 
   bool _sameParagraph(TextBlock upper, TextBlock lower) {
@@ -362,4 +435,14 @@ class PdfBlockExtractor {
       fontSizeHint: math.max(a.fontSizeHint, b.fontSizeHint),
     );
   }
+}
+
+/// Style dominant d'une ligne : taille de police réelle (points) + graisse,
+/// lus dans les spans MuPDF. Sert de garde anti-fusion entre éléments de
+/// styles différents (libellé gras vs corps, titre vs paragraphe…).
+class _LineStyle {
+  const _LineStyle(this.size, this.bold);
+
+  final double size;
+  final bool bold;
 }

@@ -146,11 +146,7 @@ class PdfExportService {
       text,
       textAlign: layout.centered ? pw.TextAlign.center : pw.TextAlign.left,
       style: pw.TextStyle(
-        font: block.bold
-            ? (block.italic
-                  ? pw.Font.helveticaBoldOblique()
-                  : pw.Font.helveticaBold())
-            : (block.italic ? pw.Font.helveticaOblique() : pw.Font.helvetica()),
+        font: _blockFont(block),
         fontSize: block.fontSizeHint,
         color: color,
       ),
@@ -184,5 +180,28 @@ class PdfExportService {
         ),
       ),
     ];
+  }
+
+  /// Police d'export la plus proche de la famille d'origine (polices
+  /// standard du package pdf : Times pour serif, Courier pour mono,
+  /// Helvetica pour sans).
+  static pw.Font _blockFont(TextBlock block) {
+    switch (block.family) {
+      case TextFamily.serif:
+        if (block.bold && block.italic) return pw.Font.timesBoldItalic();
+        if (block.bold) return pw.Font.timesBold();
+        if (block.italic) return pw.Font.timesItalic();
+        return pw.Font.times();
+      case TextFamily.mono:
+        if (block.bold && block.italic) return pw.Font.courierBoldOblique();
+        if (block.bold) return pw.Font.courierBold();
+        if (block.italic) return pw.Font.courierOblique();
+        return pw.Font.courier();
+      case TextFamily.sans:
+        if (block.bold && block.italic) return pw.Font.helveticaBoldOblique();
+        if (block.bold) return pw.Font.helveticaBold();
+        if (block.italic) return pw.Font.helveticaOblique();
+        return pw.Font.helvetica();
+    }
   }
 }

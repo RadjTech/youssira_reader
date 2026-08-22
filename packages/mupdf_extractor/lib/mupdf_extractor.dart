@@ -34,9 +34,33 @@ class MupdfSpan {
   bool get isItalic =>
       RegExp(r'italic|oblique', caseSensitive: false).hasMatch(font);
   bool get isMono => RegExp(
-        r'mono|courier|consolas|menlo|cascadia|code',
+        r'mono|courier|consolas|menlo|cascadia|inconsolata|dejavu|fira ?code|jetbrains|source ?code|typewriter',
         caseSensitive: false,
       ).hasMatch(font);
+
+  /// Serif détecté sur le vrai nom de police (Times, Garamond, Cambria…).
+  /// Attention : « sans-serif » contient « serif » → on exclut d'abord.
+  bool get isSerif {
+    final f = font.toLowerCase();
+    if (f.contains('sans')) return false;
+    if (isMono) return false;
+    return RegExp(
+      r'serif|times|georgia|garamond|antiqua|palatino|cambria|minion|bodoni|didot|bookman|schoolbook|rockwell|goudy|calisto|caslon|baskerville',
+    ).hasMatch(f);
+  }
+
+  /// Clé de famille (nom nettoyé des jetons de style) : deux polices avec
+  /// la même clé sont la même famille (ex. TimesNewRomanPS-BoldMT et
+  /// TimesNewRomanPSMT → « timesnewroman »).
+  String get familyKey => font
+      .toLowerCase()
+      .replaceAll(
+        RegExp(
+          r'[,.\-\s]?(bold|black|heavy|semibold|demibold|demi|light|medium|thin|condensed|compressed|narrow|regular|italic|oblique|mt|ps|std|cy|ce|ee|w\d+)',
+        ),
+        '',
+      )
+      .replaceAll(RegExp(r'\s+'), '');
 
   static MupdfSpan? fromJson(Map<String, dynamic> j) {
     final size = (j['size'] as num?)?.toDouble() ?? 0;

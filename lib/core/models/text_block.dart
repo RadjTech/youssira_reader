@@ -11,6 +11,10 @@ enum BlockSource {
   ocr,
 }
 
+/// Famille de police du bloc (déduite du vrai nom de police MuPDF).
+/// Sert à choisir une police de rendu visuellement proche de l'originale.
+enum TextFamily { sans, serif, mono }
+
 /// Un bloc de texte d'une page PDF, avec ses coordonnées exactes et son style
 /// visuel échantillonné depuis le rendu bitmap de la page.
 ///
@@ -32,6 +36,7 @@ class TextBlock {
     this.backgroundColor = 0xFFFFFFFF,
     this.bold = false,
     this.italic = false,
+    this.family = TextFamily.sans,
     this.uniformBackground = true,
   });
 
@@ -72,6 +77,9 @@ class TextBlock {
   /// Italique détecté (nom de police MuPDF : *Italic*/*Oblique*).
   final bool italic;
 
+  /// Famille de police d'origine (sans par défaut).
+  final TextFamily family;
+
   /// true si le fond du bloc est uniforme (page blanche, encadré uni…).
   /// false = fond complexe (image, capture, dégradé) : le calque ne pose
   /// alors AUCUN rectangle (style Google Lens : texte avec halo).
@@ -106,6 +114,7 @@ class TextBlock {
       backgroundColor: backgroundColor,
       bold: bold,
       italic: italic,
+      family: family,
       uniformBackground: uniformBackground,
     );
   }
@@ -118,6 +127,7 @@ class TextBlock {
     int? textColor,
     bool? bold,
     bool? italic,
+    TextFamily? family,
   }) {
     return TextBlock(
       id: id,
@@ -133,6 +143,7 @@ class TextBlock {
       backgroundColor: backgroundColor,
       bold: bold ?? this.bold,
       italic: italic ?? this.italic,
+      family: family ?? this.family,
       uniformBackground: uniformBackground,
     );
   }

@@ -3,6 +3,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
+import '../../core/models/text_block.dart';
 import '../../core/services/monetization/limits_service.dart';
 import '../../core/services/pdf/block_layout.dart';
 import '../monetization/limit_dialog.dart';
@@ -112,6 +113,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             backgroundColor: block.backgroundColor,
             bold: block.bold,
             italic: block.italic,
+            family: block.family,
             uniformBackground: block.uniformBackground,
             patchHeight: block.height * scale,
             textAlign: layout.centered ? TextAlign.center : TextAlign.left,
@@ -225,6 +227,7 @@ class _TranslationOverlayBox extends StatelessWidget {
     required this.backgroundColor,
     required this.bold,
     required this.italic,
+    required this.family,
     required this.uniformBackground,
     required this.patchHeight,
     required this.textAlign,
@@ -239,7 +242,23 @@ class _TranslationOverlayBox extends StatelessWidget {
   final int backgroundColor;
   final bool bold;
   final bool italic;
+
+  /// Famille de police d'origine : le calque utilise une police visuellement
+  /// proche (Noto Serif pour les serif, Noto Sans Mono pour les monospace,
+  /// police système sinon).
+  final TextFamily family;
   final bool uniformBackground;
+
+  String? get _fontFamilyName {
+    switch (family) {
+      case TextFamily.serif:
+        return 'NotoSerif';
+      case TextFamily.mono:
+        return 'NotoSansMono';
+      case TextFamily.sans:
+        return null; // police système (Roboto) ≈ sans-serif
+    }
+  }
 
   /// Hauteur du patch de fond = hauteur de la boîte ORIGINALE. Le texte
   /// traduit peut déborder en dessous SANS fond, pour ne jamais effacer
@@ -275,6 +294,7 @@ class _TranslationOverlayBox extends StatelessWidget {
         textAlign: textAlign,
         textScaler: TextScaler.noScaling,
         style: TextStyle(
+          fontFamily: _fontFamilyName,
           fontSize: fontSize,
           height: 1.2,
           color: Color(color),
