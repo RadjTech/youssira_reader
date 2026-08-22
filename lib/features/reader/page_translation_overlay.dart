@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/reader_settings.dart';
 import '../../core/services/monetization/limits_service.dart';
+import '../../core/services/pdf/block_layout.dart';
 import '../monetization/limit_dialog.dart';
 import 'reader_controller.dart';
 
@@ -63,21 +62,7 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
 
     final blocks = controller.blocksForPage(widget.page.pageNumber);
     final pageW = widget.page.width;
-
-    // Marges utiles de la page : la traduction (souvent plus longue que
-    // l'original) dispose de toute la largeur jusqu'aux marges, comme un
-    // vrai composeur — au lieu d'être enfermée dans la boîte d'origine.
-    double leftMargin = 48;
-    double rightMargin = 48;
-    if (blocks.isNotEmpty) {
-      leftMargin = math.max(
-          24, math.min(96, blocks.map((b) => b.left).reduce(math.min)));
-      rightMargin = math.max(
-          24, math.min(96, blocks.map((b) => pageW - b.right).reduce(math.min)));
-    }
-    // Garde 2 colonnes : un bloc de la colonne gauche ne doit pas traverser
-    // la gouttière.
-    final hasRightColumn = blocks.any((b) => b.left > pageW * 0.5);
+    final margins = BlockLayout.pageMargins(blocks, pageW);
 
     for (final block in blocks) {
       final progress = controller.progressFor(block.id);
@@ -87,20 +72,21 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
         continue;
       }
 
-      // Bloc centré (titre…) : toute la largeur utile + texte centré.
-      final centered = (block.left - (pageW - block.right)).abs() < 18;
-      final boxLeft = centered ? leftMargin : block.left;
-      var boxWidth = pageW - rightMargin - boxLeft;
-      if (hasRightColumn && block.right < pageW * 0.55) {
-        boxWidth = math.min(boxWidth, pageW * 0.5 - boxLeft - 8);
-      }
-      boxWidth = math.max(boxWidth, block.width);
+      // Largeur étendue jusqu'aux marges/obstacles ; titres centrés en
+      // pleine largeur utile (voir BlockLayout).
+      final layout = BlockLayout.forBlock(
+        block,
+        pageWidth: pageW,
+        leftMargin: margins.left,
+        rightMargin: margins.right,
+        allBlocks: blocks,
+      );
 
       // Repère PDF (origine bas-gauche) → repère du viewer (haut-gauche),
       // relatif au coin haut-gauche de la page.
-      final left = boxLeft * scale;
+      final left = layout.left * scale;
       final top = (widget.page.height - block.top) * scale;
-      final width = boxWidth * scale;
+      final width = layout.width * scale;
 
       // Police : 100 % de la taille apparente de l'original (choix
       // utilisateur) — jamais plus grande, pour éviter tout chevauchement.
@@ -126,7 +112,8 @@ class _PageTranslationOverlayState extends State<PageTranslationOverlay> {
             backgroundColor: block.backgroundColor,
             bold: block.bold,
             uniformBackground: block.uniformBackground,
-            textAlign: centered ? TextAlign.center : TextAlign.left,
+            patchHeight: block.height * scale,
+            textAlign: layout.centered ? TextAlign.center : TextAlign.left,
           ),
         ),
       );
@@ -237,6 +224,7 @@ class _TranslationOverlayBox extends StatelessWidget {
     required this.backgroundColor,
     required this.bold,
     required this.uniformBackground,
+    required this.patchHeight,
     required this.textAlign,
   });
 
@@ -249,6 +237,11 @@ class _TranslationOverlayBox extends StatelessWidget {
   final int backgroundColor;
   final bool bold;
   final bool uniformBackground;
+
+  /// Hauteur du patch de fond = hauteur de la boîte ORIGINALE. Le texte
+  /// traduit peut déborder en dessous SANS fond, pour ne jamais effacer
+  /// les éléments de l'original (traits, filigranes…) situés sous le bloc.
+  final double patchHeight;
   final TextAlign textAlign;
 
   static double _lum(int c) {
@@ -272,26 +265,42 @@ class _TranslationOverlayBox extends StatelessWidget {
     final r = (backgroundColor >> 16) & 0xFF;
     final g = (backgroundColor >> 8) & 0xFF;
     final b = backgroundColor & 0xFF;
+    final text = Padding(
+      padding: EdgeInsets.symmetric(horizontal: padding),
+      child: Text(
+        translated,
+        textAlign: textAlign,
+        textScaler: TextScaler.noScaling,
+        style: TextStyle(
+          fontSize: fontSize,
+          height: 1.2,
+          color: Color(color),
+          fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+          shadows: uniformBackground ? null : _halo(color),
+        ),
+      ),
+    );
+
     return GestureDetector(
       onTap: () => _showOriginal(context),
-      child: Container(
-        // Fond complexe → aucun rectangle : le PDF n'est pas dégradé.
-        color: uniformBackground
-            ? Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0))
-            : null,
-        padding: EdgeInsets.symmetric(horizontal: padding),
-        child: Text(
-          translated,
-          textAlign: textAlign,
-          textScaler: TextScaler.noScaling,
-          style: TextStyle(
-            fontSize: fontSize,
-            height: 1.2,
-            color: Color(color),
-            fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
-            shadows: uniformBackground ? null : _halo(color),
-          ),
-        ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Le patch de fond est LIMITÉ à la boîte originale : jamais
+          // effacer traits, logos ou filigranes situés sous le bloc.
+          // Fond complexe → aucun rectangle : le PDF n'est pas dégradé.
+          if (uniformBackground)
+            Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: patchHeight,
+              child: Container(
+                color: Color.fromRGBO(r, g, b, opacity.clamp(0.0, 1.0)),
+              ),
+            ),
+          text,
+        ],
       ),
     );
   }

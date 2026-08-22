@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
@@ -10,6 +9,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../features/reader/reader_controller.dart';
 import '../models/text_block.dart';
+import 'pdf/block_layout.dart';
 
 /// Export du document traduit en PDF, deux formats :
 /// - **fidèle** (imageBased) : chaque page originale rendue en image, avec
@@ -40,20 +40,8 @@ class PdfExportService {
         final format = PdfPageFormat(page.width, page.height);
         final blocks = controller.blocksForPage(n);
 
-        // Mêmes « marges de page » que le calque à l'écran : la traduction
-        // dispose de toute la largeur utile, pas seulement de la boîte
-        // d'origine.
-        double leftMargin = 48;
-        double rightMargin = 48;
-        if (blocks.isNotEmpty) {
-          leftMargin = math.max(
-              24, math.min(96, blocks.map((b) => b.left).reduce(math.min)));
-          rightMargin = math.max(
-              24,
-              math.min(
-                  96, blocks.map((b) => page.width - b.right).reduce(math.min)));
-        }
-        final hasRightColumn = blocks.any((b) => b.left > page.width * 0.5);
+        // Mêmes « marges de page » que le calque à l'écran (BlockLayout).
+        final margins = BlockLayout.pageMargins(blocks, page.width);
 
         pw.Widget background = pw.SizedBox();
         if (imageBased) {
@@ -84,9 +72,9 @@ class PdfExportService {
                     imageBased,
                     page.height,
                     page.width,
-                    leftMargin,
-                    rightMargin,
-                    hasRightColumn,
+                    margins.left,
+                    margins.right,
+                    blocks,
                   ),
               ],
             ),
@@ -125,7 +113,7 @@ class PdfExportService {
     double pageWidth,
     double leftMargin,
     double rightMargin,
-    bool hasRightColumn,
+    List<TextBlock> allBlocks,
   ) {
     final progress = controller.progressFor(block.id);
     final translated = progress?.translatedText;
@@ -144,35 +132,50 @@ class PdfExportService {
     final color = PdfColor.fromInt(block.textColor & 0xFFFFFF);
     final patch = PdfColor.fromInt(block.backgroundColor & 0xFFFFFF);
 
-    // Bloc centré (titre…) : pleine largeur utile + centrage ; sinon la
-    // traduction s'étend jusqu'à la marge droite de la page.
-    final centered = (block.left - (pageWidth - block.right)).abs() < 18;
-    final boxLeft = centered ? leftMargin : block.left;
-    var boxWidth = pageWidth - rightMargin - boxLeft;
-    if (hasRightColumn && block.right < pageWidth * 0.55) {
-      boxWidth = math.min(boxWidth, pageWidth * 0.5 - boxLeft - 8);
-    }
-    boxWidth = math.max(boxWidth, block.width);
+    // Largeur étendue jusqu'aux marges/obstacles ; titres centrés (même
+    // logique que le calque à l'écran).
+    final layout = BlockLayout.forBlock(
+      block,
+      pageWidth: pageWidth,
+      leftMargin: leftMargin,
+      rightMargin: rightMargin,
+      allBlocks: allBlocks,
+    );
+
+    final text = pw.Text(
+      text,
+      textAlign: layout.centered ? pw.TextAlign.center : pw.TextAlign.left,
+      style: pw.TextStyle(
+        font: block.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(),
+        fontSize: block.fontSizeHint,
+        color: color,
+      ),
+    );
 
     return [
       pw.Positioned(
-        left: boxLeft,
+        left: layout.left,
         top: pageHeight - block.top,
         child: pw.SizedBox(
-          width: boxWidth,
-          child: pw.Container(
-            // En mode fidèle, le patch recouvre le texte original de l'image.
-            color: done && imageBased ? patch : null,
-            child: pw.Text(
+          width: layout.width,
+          child: pw.Stack(
+            overflow: pw.Overflow.visible,
+            children: [
+              // En mode fidèle, le patch recouvre le texte original de
+              // l'image — limité à la boîte d'origine pour ne jamais
+              // effacer traits/logos situés sous le bloc.
+              if (done && imageBased)
+                pw.Positioned(
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  child: pw.SizedBox(
+                    height: block.height,
+                    child: pw.Container(color: patch),
+                  ),
+                ),
               text,
-              textAlign: centered ? pw.TextAlign.center : pw.TextAlign.left,
-              style: pw.TextStyle(
-                font:
-                    block.bold ? pw.Font.helveticaBold() : pw.Font.helvetica(),
-                fontSize: block.fontSizeHint,
-                color: color,
-              ),
-            ),
+            ],
           ),
         ),
       ),
