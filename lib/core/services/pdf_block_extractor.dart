@@ -104,6 +104,10 @@ class PdfBlockExtractor {
       }
       double sizeSum = 0;
       int sizeLen = 0, boldLen = 0, italicLen = 0, serifLen = 0, monoLen = 0;
+      // Union des boîtes de glyphes MuPDF : la vraie hauteur du texte
+      // (PDFium rend parfois des boîtes trop courtes → liseré fantôme).
+      double inkL = block.left, inkT = block.top, inkR = block.right;
+      double inkB = block.bottom;
       for (final s in candidates) {
         final w = s.text.trim().length;
         if (w == 0) continue;
@@ -116,6 +120,10 @@ class PdfBlockExtractor {
         } else if (s.isSerif) {
           serifLen += w;
         }
+        if (s.left < inkL) inkL = s.left;
+        if (s.top > inkT) inkT = s.top;
+        if (s.right > inkR) inkR = s.right;
+        if (s.bottom < inkB) inkB = s.bottom;
       }
       if (sizeLen == 0) {
         out.add(block);
@@ -129,8 +137,17 @@ class PdfBlockExtractor {
       } else {
         family = TextFamily.sans;
       }
+      // Expansion bornée : assez pour les ascendantes/descendantes
+      // (liseré fantôme), pas assez pour toucher un élément voisin.
+      const vCap = 6.0, hCap = 4.0;
+      final grown = block.withBounds(
+        left: inkL > block.left - hCap ? inkL : block.left - hCap,
+        top: inkT < block.top + vCap ? inkT : block.top + vCap,
+        right: inkR < block.right + hCap ? inkR : block.right + hCap,
+        bottom: inkB > block.bottom - vCap ? inkB : block.bottom - vCap,
+      );
       out.add(
-        block.withRealStyle(
+        grown.withRealStyle(
           fontSize: sizeSum / sizeLen,
           bold: boldLen * 2 > sizeLen,
           italic: italicLen * 2 > sizeLen,

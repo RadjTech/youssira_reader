@@ -88,6 +88,35 @@ class TextBlock {
   double get width => right - left;
   double get height => top - bottom;
 
+  /// Élargit la boîte du bloc (jamais rétrécie) pour couvrir exactement les
+  /// glyphes réels mesurés par MuPDF : le patch recouvre alors TOUT le texte
+  /// d'origine (ascendantes/descendantes comprises) — plus de liseré
+  /// fantôme. L'expansion est bornée côté appelant.
+  TextBlock withBounds({
+    double? left,
+    double? top,
+    double? right,
+    double? bottom,
+  }) {
+    return TextBlock(
+      id: id,
+      pageNumber: pageNumber,
+      text: text,
+      left: left != null && left < this.left ? left : this.left,
+      top: top != null && top > this.top ? top : this.top,
+      right: right != null && right > this.right ? right : this.right,
+      bottom: bottom != null && bottom < this.bottom ? bottom : this.bottom,
+      source: source,
+      fontSizeHint: fontSizeHint,
+      textColor: textColor,
+      backgroundColor: backgroundColor,
+      bold: bold,
+      italic: italic,
+      family: family,
+      uniformBackground: uniformBackground,
+    );
+  }
+
   /// Calcule un identifiant stable pour un texte donné.
   static String computeId(String text) {
     final normalized = text.trim().replaceAll(RegExp(r'\s+'), ' ');

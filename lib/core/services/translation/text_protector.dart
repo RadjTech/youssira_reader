@@ -47,7 +47,10 @@ class TextProtector {
       r'https?://\S+', // URLs
       r'[\w.+-]+@[\w-]+\.[A-Za-z]{2,}', // emails
       r'\bv?\d+(?:\.\d+)+\b', // numéros de version : 4.21, v1.2.3
-      r'[.…]{4,}\s*\S{0,8}', // points de conduite de sommaire + n° de page
+      // Conduites de sommaire : pointillés serrés OU espacés (. . . .),
+      // tirets / underscores répétés, suivis éventuellement du n° de page.
+      r'(?:[.…]\s*){4,}\S{0,8}',
+      r'[-_–—]{4,}\s*\S{0,8}',
       r'\b(?:' + _wordNames.map(RegExp.escape).join('|') + r')\b',
       _specialNames.map(RegExp.escape).join('|'),
     ].join('|'),
@@ -88,5 +91,22 @@ class TextProtector {
 
   /// true si le bloc ne contient quasiment rien à traduire (que des éléments
   /// protégés) : on le laisse alors tel quel, sans calque.
-  static bool shouldSkip(String text) => mask(text).remaining.length < 3;
+  static bool shouldSkip(String text) {
+    final t = text.trim();
+    // Aucune lettre : pointillés, tirets, puces, traits de mise en page →
+    // jamais traduits ni recouverts.
+    if (!RegExp(r'\p{L}', unicode: true).hasMatch(t)) return true;
+    // Logo / marque (un seul mot à majuscule interne) : intact.
+    if (looksLikeBrand(t)) return true;
+    return mask(t).remaining.length < 3;
+  }
+
+  /// Un seul mot portant une majuscule INTERNE (IntelliPaat, iPhone, FedEx,
+  /// PayPal) : quasi certainement un logo ou une marque → pas de traduction,
+  /// pas de calque (le patch effacerait le logo dessiné).
+  static bool looksLikeBrand(String text) {
+    final t = text.trim();
+    if (t.isEmpty || t.contains(' ')) return false;
+    return RegExp(r'\p{Ll}\p{Lu}', unicode: true).hasMatch(t);
+  }
 }
