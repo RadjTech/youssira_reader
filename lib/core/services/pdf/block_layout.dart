@@ -51,9 +51,14 @@ class BlockLayout {
   }) {
     final contentW = pageWidth - leftMargin - rightMargin;
 
-    // Centré = marges symétriques ET nettement plus étroit que la page.
-    final centered = (block.left - (pageWidth - block.right)).abs() < 18 &&
-        block.width < contentW * 0.8;
+    // Centré = marges symétriques ET réellement en retrait des deux côtés
+    // (un titre), PAS un paragraphe pleine largeur dont les bords touchent
+    // les marges (sinon ses lignes seraient centrées : catastrophe).
+    final leftGap = block.left;
+    final rightGap = pageWidth - block.right;
+    final centered = (leftGap - rightGap).abs() < 18 &&
+        leftGap > leftMargin + 12 &&
+        block.width < contentW * 0.9;
 
     final boxLeft = centered ? leftMargin : block.left;
     var maxW = pageWidth - rightMargin - boxLeft;
