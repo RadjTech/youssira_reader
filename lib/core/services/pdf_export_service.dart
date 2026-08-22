@@ -142,7 +142,7 @@ class PdfExportService {
       allBlocks: allBlocks,
     );
 
-    final text = pw.Text(
+    final textWidget = pw.Text(
       text,
       textAlign: layout.centered ? pw.TextAlign.center : pw.TextAlign.left,
       style: pw.TextStyle(
@@ -174,7 +174,7 @@ class PdfExportService {
                     child: pw.Container(color: patch),
                   ),
                 ),
-              text,
+              textWidget,
             ],
           ),
         ),
