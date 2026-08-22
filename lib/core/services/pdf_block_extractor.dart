@@ -111,7 +111,17 @@ class PdfBlockExtractor {
       for (final s in candidates) {
         final w = s.text.trim().length;
         if (w == 0) continue;
-        sizeSum += s.fontSize * w;
+        // Certains PDF (titres, couvertures) stockent une taille de police
+        // brute appliquée à une matrice de texte rétrécie/agrandie : la
+        // taille lue ne correspond alors pas aux glyphes. Garde géométrique
+        // par span : hors de [0.5, 1.6]× la hauteur de boîte, on prend
+        // 80 % de la boîte (ascendantes/descendantes incluses).
+        var size = s.fontSize;
+        final spanH = s.top - s.bottom;
+        if (spanH > 0 && (size < 0.5 * spanH || size > 1.6 * spanH)) {
+          size = spanH * 0.8;
+        }
+        sizeSum += size * w;
         sizeLen += w;
         if (s.isBold) boldLen += w;
         if (s.isItalic) italicLen += w;

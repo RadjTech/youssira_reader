@@ -31,6 +31,11 @@ enum ReadingMode {
 
   /// Mode lecture : traduction retypographiée comme un ebook.
   reflow,
+
+  /// « Document traduit » (façon Xodo) : le document est recomposé —
+  /// pages originales en image + texte traduit reflowé par-dessus — puis
+  /// rouvert comme un PDF à part entière dans le viewer.
+  document,
 }
 
 /// Réglages de lecture et de traduction.

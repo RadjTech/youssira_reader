@@ -267,7 +267,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             ? Icons.translate
                             : controller.settings.mode == ReadingMode.reflow
                                 ? Icons.article
-                                : Icons.menu_book,
+                                : controller.settings.mode == ReadingMode.document
+                                    ? Icons.description_outlined
+                                    : Icons.menu_book,
                       ),
                       onSelected: (mode) => controller.updateSettings(
                         controller.settings.copyWith(mode: mode),
@@ -284,6 +286,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         PopupMenuItem(
                           value: ReadingMode.reflow,
                           child: Text('Mode lecture (ebook)'),
+                        ),
+                        PopupMenuItem(
+                          value: ReadingMode.document,
+                          child: Text('Document traduit (Xodo)'),
                         ),
                       ],
                     ),
@@ -329,8 +335,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
         body: Consumer<ReaderController>(
           builder: (context, controller, _) {
             Widget main;
-            // Mode lecture : document retypographié comme un ebook.
-            if (controller.settings.mode == ReadingMode.reflow) {
+            // Mode « document traduit » (Xodo) : PDF recomposé rouvert dans
+            // le viewer. On attache d'abord le document original (blocs).
+            if (controller.settings.mode == ReadingMode.document) {
+              main = PdfDocumentViewBuilder.file(
+                widget.path,
+                builder: (context, document) {
+                  if (document == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  _attachOnce(document);
+                  return _buildDocumentMode(controller);
+                },
+              );
+            } else if (controller.settings.mode == ReadingMode.reflow) {
+              // Mode lecture : document retypographié comme un ebook.
               main = PdfDocumentViewBuilder.file(
                 widget.path,
                 builder: (context, document) {
@@ -354,6 +373,80 @@ class _ReaderScreenState extends State<ReaderScreen> {
           },
         ),
       ),
+    );
+  }
+
+  /// Mode « document traduit » : PDF recomposé (image + texte reflowé)
+  /// rouvert comme document à part entière ; avant génération, écran
+  /// d'accueil avec bouton ; après nouvelles traductions, bouton régénérer.
+  Widget _buildDocumentMode(ReaderController controller) {
+    final path = controller.translatedDocPath;
+    if (path == null) {
+      return Center(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome, size: 44),
+                const SizedBox(height: 12),
+                Text(
+                  'Document traduit',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Le document est recomposé : pages originales\n'
+                  'conservées, texte traduit reflowé par-dessus\n'
+                  'avec un vrai moteur de mise en page.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: controller.busy || controller.generatingDoc
+                      ? null
+                      : () => controller.openTranslatedDocument(),
+                  icon: const Icon(Icons.translate),
+                  label: const Text('Générer le document traduit'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Stack(
+      children: [
+        PdfViewer.file(path),
+        if (controller.translatedDocStale && !controller.generatingDoc)
+          Positioned(
+            top: 8,
+            left: 8,
+            right: 8,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Nouvelles traductions disponibles.'),
+                    ),
+                    TextButton(
+                      onPressed: controller.busy
+                          ? null
+                          : () => controller.openTranslatedDocument(),
+                      child: const Text('Régénérer'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

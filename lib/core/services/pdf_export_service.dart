@@ -30,12 +30,71 @@ class PdfExportService {
     required bool imageBased,
     required void Function(double? progress, String label) onProgress,
   }) async {
+    final doc = await _compose(
+      sourcePath: sourcePath,
+      controller: controller,
+      imageBased: imageBased,
+      onProgress: onProgress,
+    );
+
+    onProgress(0.95, 'Enregistrement…');
+    final bytes = await doc.save();
+
+    final base = sourcePath
+        .split(Platform.pathSeparator)
+        .last
+        .replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+    final outUri = await FilePicker.saveFile(
+      fileName: '$base-traduit.pdf',
+      bytes: bytes,
+      mimeType: 'application/pdf',
+      dialogTitle: 'Enregistrer le PDF traduit',
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+    );
+    if (outUri == null) return null;
+    onProgress(1.0, 'Terminé');
+    // file_picker écrit déjà les bytes (SAF). On renvoie un chemin lisible.
+    return outUri.scheme == 'file' ? outUri.toFilePath() : outUri.toString();
+  }
+
+  /// Mode « document traduit » (Xodo) : compose le PDF recomposé et
+  /// l'enregistre sur disque pour ouverture directe dans le viewer.
+  static Future<String> buildTranslatedPdfToFile({
+    required String sourcePath,
+    required ReaderController controller,
+    required String outPath,
+    required void Function(double? progress, String label) onProgress,
+  }) async {
+    final doc = await _compose(
+      sourcePath: sourcePath,
+      controller: controller,
+      imageBased: true,
+      onProgress: onProgress,
+    );
+    onProgress(0.95, 'Enregistrement…');
+    final bytes = await doc.save();
+    await File(outPath).writeAsBytes(bytes);
+    onProgress(1.0, 'Terminé');
+    return outPath;
+  }
+
+  /// Compose le document traduit : page originale en image (mode fidèle) +
+  /// patchs + texte traduit reflowé par le moteur de mise en page du
+  /// package pdf (pleine largeur utile, titres centrés).
+  static Future<pw.Document> _compose({
+    required String sourcePath,
+    required ReaderController controller,
+    required bool imageBased,
+    required void Function(double? progress, String label) onProgress,
+  }) async {
     final source = await PdfDocument.openFile(sourcePath);
-    final doc = pw.Document();
-    final pages = source.pages.length;
+    try {
+      final doc = pw.Document();
+      final pages = source.pages.length;
 
       for (var n = 1; n <= pages; n++) {
-        onProgress(((n - 1) / pages) * 0.9, 'Export — page $n/$pages');
+        onProgress(((n - 1) / pages) * 0.9, 'Composition — page $n/$pages');
         final page = source.pages[n - 1];
         final format = PdfPageFormat(page.width, page.height);
         final blocks = controller.blocksForPage(n);
@@ -43,7 +102,7 @@ class PdfExportService {
         // Mêmes « marges de page » que le calque à l'écran (BlockLayout).
         final margins = BlockLayout.pageMargins(blocks, page.width);
 
-        pw.Widget background = pw.SizedBox();
+        pw.Widget background;
         if (imageBased) {
           final rendered = await page.render(
             width: (page.width * 1.5).round(),
@@ -56,7 +115,15 @@ class PdfExportService {
             background = pw.Positioned.fill(
               child: pw.Image(pw.MemoryImage(jpeg), fit: pw.BoxFit.fill),
             );
+          } else {
+            background =
+                pw.SizedBox(width: page.width, height: page.height);
           }
+        } else {
+          // IMPORTANT : enfant NON positionné aux dimensions de la page,
+          // sinon le Stack se replie sur 0×0 et tout le contenu positionné
+          // sort de la page (bug du « document tout blanc »).
+          background = pw.SizedBox(width: page.width, height: page.height);
         }
 
         doc.addPage(
@@ -81,26 +148,10 @@ class PdfExportService {
           ),
         );
       }
-
-      onProgress(0.95, 'Enregistrement…');
-      final bytes = await doc.save();
-
-      final base = sourcePath
-          .split(Platform.pathSeparator)
-          .last
-          .replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
-      final outUri = await FilePicker.saveFile(
-        fileName: '$base-traduit.pdf',
-        bytes: bytes,
-        mimeType: 'application/pdf',
-        dialogTitle: 'Enregistrer le PDF traduit',
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
-      );
-      if (outUri == null) return null;
-      onProgress(1.0, 'Terminé');
-      // file_picker écrit déjà les bytes (SAF). On renvoie un chemin lisible.
-      return outUri.scheme == 'file' ? outUri.toFilePath() : outUri.toString();
+      return doc;
+    } finally {
+      await source.dispose();
+    }
   }
 
   /// Patch + texte traduit d'un bloc (ou texte original en mode léger si le

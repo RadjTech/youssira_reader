@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/app_services.dart';
@@ -6,6 +7,7 @@ import '../../core/models/reader_settings.dart';
 import '../../core/models/text_block.dart';
 import '../../core/services/language_detector.dart';
 import '../../core/services/pdf_block_extractor.dart';
+import '../../core/services/pdf_export_service.dart';
 import '../../core/services/translation/code_detector.dart';
 import '../../core/services/translation/text_protector.dart';
 import '../../core/services/translation_service.dart';
@@ -61,6 +63,12 @@ class ReaderController extends ChangeNotifier {
   final Map<String, BlockProgress> _progress = {}; // clé : id de bloc
   final Set<int> _translatedPages = {};
   int _pageCount = 0;
+
+  // Mode « document traduit » (Xodo) : PDF recomposé, généré à la demande.
+  String? _translatedDocPath;
+  bool _generatingDoc = false;
+  int _resolvedCount = 0; // blocs done/skipped (détecte un document périmé)
+  int _genRevision = -1;
 
   /// File d'extraction : les appels PDFium (FFI synchrones) sont sérialisés
   /// pour ne pas bloquer l'isolate UI plusieurs fois en parallèle (jank).
@@ -125,6 +133,16 @@ class ReaderController extends ChangeNotifier {
   List<TextBlock> blocksForPage(int pageNumber) =>
       _blocksByPage[pageNumber] ?? const [];
 
+  /// Chemin du PDF recomposé (« document traduit »), null avant génération.
+  String? get translatedDocPath => _translatedDocPath;
+
+  bool get generatingDoc => _generatingDoc;
+
+  /// true si des traductions ont progressé depuis la dernière génération :
+  /// l'UI propose alors de régénérer le document traduit.
+  bool get translatedDocStale =>
+      _translatedDocPath != null && _genRevision != _resolvedCount;
+
   BlockProgress? progressFor(String blockId) => _progress[blockId];
 
   bool isPageTranslated(int pageNumber) =>
@@ -149,6 +167,8 @@ class ReaderController extends ChangeNotifier {
     if (changed) {
       _progress.clear();
       _translatedPages.clear();
+      _resolvedCount = 0;
+      _translatedDocPath = null; // document recomposé = périmé
     }
     notifyListeners();
   }
@@ -269,6 +289,7 @@ class ReaderController extends ChangeNotifier {
       if (CodeDetector.looksLikeCode(block.text) ||
           TextProtector.shouldSkip(block.text)) {
         _progress[block.id] = const BlockProgress(state: BlockState.skipped);
+        _resolvedCount++;
         onBlockResolved?.call();
         notifyListeners();
         continue;
@@ -289,6 +310,7 @@ class ReaderController extends ChangeNotifier {
           translatedText: result.translated,
           fromCache: result.fromCache,
         );
+        _resolvedCount++;
       } catch (e) {
         _progress[block.id] = BlockProgress(state: BlockState.error, error: '$e');
       }
@@ -347,6 +369,59 @@ class ReaderController extends ChangeNotifier {
       _docRunning = false;
       _docAnalyzing = false;
       _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Mode « document traduit » (Xodo) : traduit tout le document si
+  /// nécessaire, puis compose le PDF recomposé (pages en image + texte
+  /// traduit reflowé) et l'enregistre pour ouverture dans le viewer.
+  Future<void> openTranslatedDocument() async {
+    if (_generatingDoc) return;
+    final path = _filePath;
+    if (path == null) return;
+    if (_translatedDocPath != null && !translatedDocStale) {
+      notifyListeners();
+      return;
+    }
+    _generatingDoc = true;
+    notifyListeners();
+    try {
+      final allTranslated = [
+        for (var i = 1; i <= _pageCount; i++) isPageTranslated(i),
+      ].every((e) => e);
+      if (!allTranslated) {
+        await translateWholeDocument();
+      }
+
+      final dir = await getTemporaryDirectory();
+      final out =
+          '${dir.path}/youssira_traduit_${path.hashCode.toUnsigned(32).toRadixString(16)}_${effectivePair.to}.pdf';
+
+      // Progression affichée par la bannière existante (pages composées).
+      _docRunning = true;
+      _docAnalyzing = false;
+      _docTotalBlocks = _pageCount;
+      _docDoneBlocks = 0;
+      notifyListeners();
+      await PdfExportService.buildTranslatedPdfToFile(
+        sourcePath: path,
+        controller: this,
+        outPath: out,
+        onProgress: (p, label) {
+          if (p != null) {
+            _docDoneBlocks = (p * _docTotalBlocks).round().clamp(0, _docTotalBlocks);
+          }
+          notifyListeners();
+        },
+      );
+      _translatedDocPath = out;
+      _genRevision = _resolvedCount;
+    } catch (e) {
+      debugPrint('Génération du document traduit échouée : $e');
+    } finally {
+      _docRunning = false;
+      _generatingDoc = false;
       notifyListeners();
     }
   }
